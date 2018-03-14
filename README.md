@@ -5,6 +5,26 @@ User-Script that adds image filters, stickers, and image tweaking tools on Masto
 
 Tested on Firefox running GreaseMonkey. Not tested on Chrome (running natively as an extension).
 
+# Install
+
+To run User-Scripts on Firefox based browsers you will need [Greasemonkey extension](https://addons.mozilla.org/en-US/firefox/addon/greasemonkey/) installed and running. 
+
+Next **[Click here](https://raw.githubusercontent.com/spaceottercode/glamodon/master/glamodon.user.js)** to automatically install the script.
+
+If GreaseMonkey does not detect the User-Script, create a New User Script in GreaseMonkey, and replace the script's text with the contents of [glamodon.users.js](https://raw.githubusercontent.com/spaceottercode/glamodon/master/glamodon.user.js).
+
+> Not tested on Chrome: No plugin is needed to run a User-Script in Chrome. Drag the script unto your browser's extension window to install. 
+
+
+> This User Script by default, runs on the following sites:
+>
+>   * mastodon.social
+>   * mastodon.art
+>   * mstdn.io
+> 
+>   Add your Mastodon site by adding a new @match line at the top of the script or replacing an existing one
+
+
 # TODO/WIP
 
 ### filters
@@ -33,26 +53,6 @@ This is where you'll find things like the focal point tool and other tools like 
 * color
 * blurs
 * text
-
-# Install
-
-To run User-Scripts on Firefox based browsers you will need [Greasemonkey extension](https://addons.mozilla.org/en-US/firefox/addon/greasemonkey/) installed and running. 
-
-Next **[Click here](https://raw.githubusercontent.com/spaceottercode/glamodon/master/glamodon.user.js)** to automatically install the script.
-
-If GreaseMonkey does not detect the User-Script, create a New User Script in GreaseMonkey, and replace the script's text with the contents of [glamodon.users.js](https://raw.githubusercontent.com/spaceottercode/glamodon/master/glamodon.user.js).
-
-> Not tested on Chrome: No plugin is needed to run a User-Script in Chrome. Drag the script unto your browser's extension window to install. 
-
-
-> This User Script by default, runs on the following sites:
->
->   * mastodon.social
->   * mastodon.art
->   * mstdn.io
-> 
->   Add your Mastodon site by adding a new @match line at the top of the script or replacing an existing one
-
 
 # Version
 
