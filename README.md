@@ -3,7 +3,7 @@ User-Script that adds image filters, stickers, and image tweaking tools on Masto
 
 > 1. Stickers and tools will be made available soon.
 
-Tested on Firefox running TamperMonkey. Not tested on Chrome (running natively as an extension).
+Tested on Firefox running GreaseMonkey. Not tested on Chrome (running natively as an extension).
 
 # TODO/WIP
 
