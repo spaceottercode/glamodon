@@ -36,8 +36,23 @@ This is where you'll find things like the focal point tool and other tools like 
 
 # Install
 
-A link will be added that here soon that GreaseMonkey users may use to install User-Scripts. 
-Also refer to the GreaseMonkey docs for other ways to install user-scripts.
+To run User-Scripts on Firefox based browsers you will need [Greasemonkey extension](https://addons.mozilla.org/en-US/firefox/addon/greasemonkey/) installed and running. 
+
+Next **[Click here](https://raw.githubusercontent.com/spaceottercode/glamodon/master/glamodon.user.js)** to automatically install the script.
+
+If GreaseMonkey does not detect the User-Script, create a New User Script in GreaseMonkey, and replace the script's text with the contents of [glamodon.users.js](https://raw.githubusercontent.com/spaceottercode/glamodon/master/glamodon.user.js).
+
+> Not tested on Chrome: No plugin is needed to run a User-Script in Chrome. Drag the script unto your browser's extension window to install. 
+
+
+> This User Script by default, runs on the following sites:
+>
+>   * mastodon.social
+>   * mastodon.art
+>   * mstdn.io
+> 
+>   Add your Mastodon site by adding a new @match line at the top of the script or replacing an existing one
+
 
 # Version
 
