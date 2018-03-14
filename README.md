@@ -22,7 +22,7 @@ On Chrome, no plugin is needed to run a User-Script like this one. Drag the scri
 >   * mastodon.art
 >   * mstdn.io
 > 
->   Add your Mastodon site by adding a new @match line at the top of the script or replacing an existing one
+>   Add your Mastodon site by adding a new @install line at the top of the script or replacing an existing one
 
 
 # TODO/WIP
@@ -50,9 +50,16 @@ i.e. utilities. This is where you'll find things like the focal point tool and o
 * brightness & contrast
 * saturation
 * curves, exposure, gamma
-* color
+* color tweaks
 * blurs
 * text
+
+### misc
+
+* render to sizes > 640x640
+* add vertical scroll
+* as the script reaches maturation, change toot button to a done/ button, processed image is integrated back
+into compose text box as usual retaining traditional workflow
 
 # Version
 
