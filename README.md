@@ -43,6 +43,6 @@ Also refer to the GreaseMonkey docs for other ways to install user-scripts.
 
 ### 0.1
 
-apply one of ~10 filters to a pic and upload. Privacy and text can be set in the main UI (compose message box).
+apply one of ~10 filters to a pic and upload. Privacy and text can be set in the main UI (compose message box). Spoiler text has limited support. In this release the processed image can be upto 640x640 but this will be lifted.
 
 
