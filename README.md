@@ -3,7 +3,7 @@ User-Script that adds image filters, stickers, and image tweaking tools on Masto
 
 > 1. Stickers and tools will be made available soon.
 
-Tested on Firefox running GreaseMonkey. Not tested on Chrome (running natively as an extension).
+Runs on Firefox running GreaseMonkey and Chrome (running natively as an extension).
 
 # Install
 
@@ -13,7 +13,7 @@ Next **[Click here](https://raw.githubusercontent.com/spaceottercode/glamodon/ma
 
 If GreaseMonkey does not detect the User-Script, create a New User Script in GreaseMonkey, and replace the script's text with the contents of [glamodon.users.js](https://raw.githubusercontent.com/spaceottercode/glamodon/master/glamodon.user.js).
 
-> Not tested on Chrome: No plugin is needed to run a User-Script in Chrome. Drag the script unto your browser's extension window to install. 
+On Chrome, no plugin is needed to run a User-Script like this one. Drag the script unto your browser's extension window to install. 
 
 
 > This User Script by default, runs on the following sites:
@@ -33,17 +33,17 @@ If GreaseMonkey does not detect the User-Script, create a New User Script in Gre
 * the ability to add and remove filters
 * the ability to reorder filters
 * document how to make custom filters
-* frames
+* the ability to add frame borders
 
 ### stickers
 
 * adding stickers is a high priority. ideally should be extensible and distributable. 
-  Simplest way is to allow any png (of limited size) to be imported as a sticker 
-* Of lesser priority but nice to have, animated stickers
+  Simplest way atm is to allow any png (of limited size) to be imported as a sticker 
+* Of lesser priority but nice to have: animated stickers
 
 ### tools
 
-This is where you'll find things like the focal point tool and other tools like rotate (90º)
+i.e. utilities. This is where you'll find things like the focal point tool and other tools like rotate (90º)
 
 * focal point
 * rotate CW, CCW, flip
@@ -58,6 +58,6 @@ This is where you'll find things like the focal point tool and other tools like 
 
 ### 0.1
 
-apply one of ~10 filters to a pic and upload. Privacy and text can be set in the main UI (compose message box). Spoiler text has limited support. In this release the processed image can be upto 640x640 but this will be lifted.
+apply one of ~10 filters to a pic and upload. Privacy and text can be set in the main UI (compose message box). Spoiler text has limited support. In this release the processed image can be upto 640x640 but this will be lifted in future releases.
 
 
