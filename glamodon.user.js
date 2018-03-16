@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name     glam
+// @name     glamodon
 // @namespace   spaceotter
 // @author   spaceotter@mastodon.art
-// @version  0.1
+// @version  0.2
 // @grant    none
 // @include  http://amer*
 // @include https://mastodon.social/*
@@ -3721,6 +3721,8 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 //																																																		//
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+var DEBUG = false;
+
 function print(text) { console.log(text);}
 
 print('loading canvas');
@@ -3730,8 +3732,10 @@ function createLightbox(parent) {
   
   print('creating lightbox');
   
+  // TODO consider making these values more accessible? ie properties
   var canvas_size = '640';
-  var filter_size = '128';
+  var filter_size = '128'; 
+  var sticker_size = '128';
   
   //////////////////////////////
   //													//
@@ -3764,29 +3768,274 @@ function createLightbox(parent) {
   var lbtoppanel = document.createElement("div");
   lbtoppanel.setAttribute('style', 'display: flex; flex-flow: row wrap; justify-content: center; margin-top: 10px; margin-bottom: 10px')
   
+  
+  //////////////////////////////
+  //													//
+  //				CANVAS						//
+  //													//
+  //////////////////////////////
+  
+  var canvasdiv = document.createElement("div"); // aids in positioning
+  canvasdiv.setAttribute('style', 'position: relative;');
+  
   var lbcanvas = document.createElement("canvas");
   lbcanvas.textContent = 'No canvas for you';
   lbcanvas.setAttribute('id', 'canvas')
   lbcanvas.setAttribute('width', canvas_size)
   lbcanvas.setAttribute('height', canvas_size)
   
-  lbtoppanel.appendChild(lbcanvas);
+  // stack is used to repr canvas items that (virtually) sit above the canvas image
+  // these items are collectively called overlays
+  //
+  // canvasstack is an array of objects: 
+  //
+  //	{	
+  //		'id':int, 		// a unique id number
+  //
+  //		'image': obj,	// HTMLImageElement
+  //
+  //		'width':int, 
+  //		'height':int,
+  //
+  //		'x':int,			// the center of the overlay
+  //		'y':int,			// the center of the overlay
+  //
+  //		'click_offset':{'x':int, 'y':int} // (reserved) to keep the dragged item from snapping its center to cursor
+	//  }
+  //
+  lbcanvas.canvasstack = [];
+  lbcanvas.next_stack_id = 1;
+  
+  lbcanvas.mousebegan = false;
+  lbcanvas.follower   = null;
+  lbcanvas.bgpixel    = null; // a copy of the unfiltered image w/ no overlays
+  lbcanvas.procpixels = null; // a copy of the filtered image w/ no overlays
+  
+  
+  //////////////////////
+  // overlay controls	//
+  //////////////////////
+  
+  // widgets that associated with overlays
+  var ovlaycontrols = document.createElement("div");
+  ovlaycontrols.setAttribute('id', 'overlay_controls');
+  ovlaycontrols.setAttribute('style', 'position: absolute;');
+  ovlaycontrols.style.display = 'none';
+  
+  ovlaycontrols.overlay_id = 0;
+  
+  ovlaycontrols.addEventListener('mouseenter', function () {
+    ovlaycontrols.style.display = 'block';
+  }, false);
+  
+  ovlaycontrols.addEventListener('mouseleave', function () {
+    ovlaycontrols.style.display = 'none';
+  }, false);
+  
+  
+  var rmwidth = 32;
+  var ovlayremove = document.createElement("button");
+  ovlayremove.setAttribute('style', 'display: block; width: ' + rmwidth +'px; height: ' + rmwidth + 'px; border-radius:' + rmwidth + 'px; border: 0; font-size: 18px; font-weight:500; color: #fff; background: rgba(0.8,0.8,0.8,.5);');
+  ovlayremove.textContent = ' x ';
+  
+  ovlayremove.addEventListener('click', function (e) {
+    
+    e.stopPropagation();
+    
+    print('removing overlay item');
+    lightboxRemoveOverlay(ovlaycontrols.overlay_id)
+    
+    ovlaycontrols.overlay_id = 0;
+    ovlaycontrols.style.display = 'none';
+    
+  }, false);
+  
+  ovlaycontrols.appendChild(ovlayremove);
+  
+  
+  canvasdiv.appendChild(ovlaycontrols);
+  
+  
+  // convenience var
+  var _ctx = lbcanvas.getContext('2d');
+  
+  
+  // events for manipulating elements on the canvas stack: e.g. stickers and UI indicators
+  
+  ////////////
+  // click	//
+  ////////////
+  
+  lbcanvas.addEventListener('click', function (e) {
+    e.stopPropagation();
+  }, false);
+  
+  //////////////////
+  //  mousedown 	//
+  //////////////////
+  
+  lbcanvas.addEventListener('mousedown', function (e) {
+    
+    e.stopPropagation();
+    
+    lbcanvas.mousebegan = true;
+    lbcanvas.follower = null;
+    
+    print('(' + e.offsetX + ', ' + e.offsetY + ')');
+    
+    // find the first matching item in LIFO order
+    for (let i = lbcanvas.canvasstack.length - 1; i >= 0 ; i--) {
+      let ovlayitem = lbcanvas.canvasstack[i];
+      
+      let xtopleft = ovlayitem.x - ovlayitem.width / 2;
+      let ytopleft = ovlayitem.y - ovlayitem.height / 2;
+      
+      if (e.offsetX > xtopleft && e.offsetX < xtopleft + ovlayitem.width && e.offsetY > ytopleft && e.offsetY < ytopleft + ovlayitem.height) {
+        // print('found a match');
+        lbcanvas.follower = ovlayitem;
+        break;
+      }
+    }
+    
+    // reset controls, if any
+    let controls = document.querySelector('#overlay_controls');
+
+    if (controls) {
+      controls.style.display = 'none';
+    }
+    
+  }, false);
+  
+  //////////////////
+  //  mousemove 	//
+  //////////////////
+  
+  lbcanvas.addEventListener('mousemove', function (e) {
+    
+    e.stopPropagation();
+    
+    if (lbcanvas.mousebegan) {
+      
+      if (lbcanvas.follower) {
+        // dragging
+        
+        // clear the canvas
+        _ctx.putImageData(lbcanvas.procpixels, 0, 0);
+        
+        lbcanvas.follower.x = e.offsetX;
+        lbcanvas.follower.y = e.offsetY;
+        
+        lightboxDrawOverlays()
+      }
+      
+    }
+    else {
+      // hovering
+      
+      // find the first object under mouse
+      let target = null;
+      
+      for (let i = lbcanvas.canvasstack.length - 1; i >= 0 ; i--) {
+        let ovlayitem = lbcanvas.canvasstack[i];
+
+        let xtopleft = ovlayitem.x - ovlayitem.width / 2;
+        let ytopleft = ovlayitem.y - ovlayitem.height / 2;
+
+        if (e.offsetX > xtopleft && e.offsetX < xtopleft + ovlayitem.width && e.offsetY > ytopleft && e.offsetY < ytopleft + ovlayitem.height) {
+          print('found a match');
+          target = ovlayitem;
+          break;
+        }
+      } // next
+      
+      // if we found an overlay...
+      if (target) {
+        
+        // update the stack controls buttons
+        let controls = document.querySelector('#overlay_controls');
+
+        // as there's only one control atm, place control on top right corner
+        if (controls) {
+          
+          let xoffset = target.x + target.width / 2 - rmwidth / 2;
+          let yoffset = (target.y - target.height / 2);
+          
+          controls.style.left = '' + xoffset + 'px';
+          controls.style.top = '' + yoffset + 'px';
+          
+          // store the stack id of the current item
+          controls.overlay_id = target.id;
+          
+          // don't show if control is too far to the right of canvas or too far above
+          if (xoffset > canvas_size - rmwidth / 2 || yoffset < -rmwidth / 2)
+          	controls.style.display = 'none';
+          else
+            controls.style.display = 'block';
+          
+        }
+      }
+      else {
+        // reset controls, if any
+        let controls = document.querySelector('#overlay_controls');
+
+        if (controls) {
+          controls.style.display = 'none';
+        }
+      }
+      
+    }
+    
+  }, false);
+  
+  
+  //////////////////
+  //  mouseup			//
+  //////////////////
+  
+  lbcanvas.addEventListener('mouseup', function (e) {
+    
+    e.stopPropagation();
+    
+    lbcanvas.mousebegan = false;
+    lbcanvas.follower = null;
+    
+  }, false);
+  
+  lbcanvas.addEventListener('mouseleave', function (e) {
+    
+    e.stopPropagation();
+    
+    lbcanvas.mousebegan = false;
+    lbcanvas.follower = null;
+    
+    // reset controls, if any
+    let controls = document.querySelector('#overlay_controls');
+          
+    if (controls) {
+      controls.style.display = 'none';
+    }
+    
+  }, false);
+  
+  
+  canvasdiv.appendChild(lbcanvas);
+  lbtoppanel.appendChild(canvasdiv);
   
   
   //////////////////////////////
   //													//
-  //				Controls					//
+  //				Right Panel				//
   //													//
   //////////////////////////////
+  
+  // TOOT BUTTON
+  // once images are integrted back into the compose box, this button becomes a Done button
   
   var lbcontrols = document.createElement("div");
-  //lbcontrols.setAttribute('style', 'display: flex; flex-flow: column nowrap; justify-content: center; width: 150px; background:deepskyblue')
   lbcontrols.setAttribute('style', 'display: flex; flex-flow: column nowrap; position:absolute; right: 100px; top: 100px; width: 150px;')
   
   var postbtn = document.createElement("button");
   postbtn.setAttribute('style', 'display: block; width: 100%; border-radius:4px; border: 0; font-size: 18px; font-weight:500; color: #fff; background: #2b90d9; padding: 10px; margin-bottom: 10px; margin-right: 10px; height: auto;');
-  
-  
   postbtn.textContent = 'Toot';
   
   postbtn.addEventListener('click', function (e) {
@@ -3801,6 +4050,8 @@ function createLightbox(parent) {
       return false;
     }
     
+    // disable while uploading
+    // TODO progress bar indicator
     postbtn.disabled = true;
     postbtn.style.background = '#808080';
     
@@ -3854,7 +4105,7 @@ function createLightbox(parent) {
     	print('uploading ' + lbcanvas.file.name + ' ...');
     }
     
-    
+    // export canvas as a blob for upload
     Caman(lbcanvas, function () {
       
       this.canvas.toBlob(blobloaded, lbcanvas.file.type);
@@ -3877,6 +4128,7 @@ function createLightbox(parent) {
   filterbtn.addEventListener('click', function (e) {
     
     e.stopPropagation();
+    lightboxShowFilters();
     
   }, false);
   
@@ -3884,8 +4136,150 @@ function createLightbox(parent) {
   
   
   // STICKERS BUTTON
+  var MAX_STICKERS = 32; // max amount of pngs allowed in a single tar
+  
+  // atm sticker files are tar files containing two or more png files
+  // png files can be up to 255x255, may have alpha, may be of different sizes
+  // no more than MAX_STICKERS pngs allowed. this may be lifted in future release.
+  // recommended: filenames < 24 chars, ascii
+  // to keep script small and single file, compressed tar files are not supported
+  
+  
+  // import_sticker_btn depends on import_sticker_btn 
+  // these buttons may be relocated in the near future,
+  // appended as the final item in the sticker list
+  
+  // this is the button the import_sticker_btn (below) will trigger
+  // because input buttons are ugly
+  var import_sticker = document.createElement("input");
+  import_sticker.setAttribute('type', 'file');
+  import_sticker.setAttribute('accept', '.tar,application/tar');
+  import_sticker.setAttribute('id', 'sticker_input');
+  import_sticker.setAttribute('name', 'stickers');
+  import_sticker.setAttribute('style', 'display: none;');
+  
+  // process selected tar file(s)
+  import_sticker.addEventListener('change', function (e) {
+    
+    var files = e.target.files;
+
+    for (let i = 0; i < files.length; i++) {
+      let file = files[i];
+
+
+      // only uncompressed tar files supported. 
+      if (file.type.startsWith('application/tar') || file.type.startsWith('application/x-tar')) {
+        // were good
+      }
+      else
+        continue;
+
+
+      let filename = file.name;
+      let filesize = file.size;
+      let filetype = file.type;
+			
+      if (DEBUG)
+      	print(filename); print(filesize); print(filetype);
+
+
+      var reader = new FileReader();
+
+      // process tar file when done loading
+      reader.addEventListener('loadend', function () {
+
+        if (DEBUG)
+          print('done loading tar file');
+        
+        var data = reader.result;
+
+        // array of obj: {buffer:ArrayBuffer, 'width':int, 'height':int}
+        var pngbuffers = [];
+
+        var offset = 0;
+
+        // every item in a tar file has a 512-byte header,
+        // plus a final header at the end with all bytes == '\0'
+
+        for (let j = 0; j < MAX_STICKERS; j++) {
+
+          let bytes = data.slice(offset, offset+512);
+          let header = new Uint8Array(bytes);
+
+          // header is always ascii
+          let header_ascii = bytesToAscii(header);
+          //print(header_ascii);
+
+          let headerobj = asciiToTarHeader(header_ascii);
+
+          if (!headerobj)
+            break;
+
+          let add_sticker = true;
+
+          // don't add folders
+          if (headerobj.type != 'FILE')
+            add_sticker = false;
+
+          // don't add dot files
+          if (headerobj.name[0] == '.')
+            add_sticker = false;
+
+          if (add_sticker) {
+
+            let pngbytes = data.slice(offset + 512, offset + 512 + headerobj.size);
+            //print(pngbytes);
+            let pngheader = bytesToPngHeader(pngbytes);
+
+            if (pngheader && pngheader.width <= 255 && pngheader.height <= 255) {
+              print('Adding ' + headerobj.name);
+              print(headerobj.size);
+
+              pngbuffers.push({'buffer':pngbytes, 'width':pngheader.width, 'height':pngheader.height});
+            }
+          }
+
+          let nextblock = roundToNearestBlock(headerobj.size);
+          //print(nextblock);
+
+          // nextblock is the number of bytes to the next header beginning where the current header ends
+          // thus, newoffset = header.length + nextblock
+          offset += 512 + nextblock;
+
+          print('---------------------------------');
+        }
+        
+        // XXX rename pngbuffers. should these args be properties of the canvas or esily accessible otherwise
+        lightboxAddStickers(pngbuffers, canvas_size, sticker_size)
+
+      }, false);
+
+
+      reader.readAsArrayBuffer(file);
+
+    }
+
+
+  }, false);
+  
+  
+  
+  var import_sticker_btn = document.createElement("button");
+  import_sticker_btn.setAttribute('style', 'display: block; width: 100%; border-radius:4px; border: 0; font-size: 18px; font-weight:500; color: #fff; background: #2b90d9; padding: 10px; margin-bottom: 10px; margin-right: 10px; height: auto;');
+  import_sticker_btn.textContent = 'Add Stickers';
+  
+  import_sticker_btn.addEventListener('click', function (e) {
+    
+    e.stopPropagation();
+    import_sticker.click();
+    
+  }, false);
+  
+  lbcontrols.appendChild(import_sticker_btn);
+  
+  
   var stickerbtn = document.createElement("button");
-  stickerbtn.setAttribute('style', 'display: block; width: 100%; border-radius:4px; border: 0; font-size: 18px; font-weight:500; color: #fff; background: #808080; padding: 10px; margin-bottom: 10px; margin-right: 10px; height: auto;');
+  stickerbtn.setAttribute('style', 'display: block; width: 100%; border-radius:4px; border: 0; font-size: 18px; font-weight:500; color: #fff; background: #2b90d9; padding: 10px; margin-bottom: 10px; margin-right: 10px; height: auto;');
   
   
   stickerbtn.textContent = 'Stickers';
@@ -3893,21 +4287,27 @@ function createLightbox(parent) {
   stickerbtn.addEventListener('click', function (e) {
     
     e.stopPropagation();
+    lightboxShowStickers();
     
   }, false);
   
   lbcontrols.appendChild(stickerbtn);
   
   
-  // EDIT BUTTON (e.g. rotate CW, focal point, brightness+contrast, exposure, crop, text)
+  
+  
+  
+  
+  // TWEAKS BUTTON (e.g. rotate CW, focal point, brightness+contrast, exposure, crop, text)
   var editbtn = document.createElement("button");
   editbtn.setAttribute('style', 'display: block; width: 100%; border-radius:4px; border: 0; font-size: 18px; font-weight:500; color: #fff; background: #808080; padding: 10px; margin-bottom: 10px; margin-right: 10px; height: auto;');
   
   
-  editbtn.textContent = 'Edit';
+  editbtn.textContent = 'Tweaks';
   
   editbtn.addEventListener('click', function (e) {
     
+    print('tweak tweak');
     e.stopPropagation();
     
   }, false);
@@ -3916,90 +4316,102 @@ function createLightbox(parent) {
   
   
   
+  if (DEBUG) {
+    // TEST BUTTON
+    var testlink = document.createElement("a");
+    testlink.download = 'export.png';
+    testlink.style.display = 'none';
+
+    var testbtn = document.createElement("button");
+    testbtn.setAttribute('id', 'testbutton');
+    testbtn.setAttribute('style', 'display: block; width: 100%; border-radius:4px; border: 0; font-size: 18px; font-weight:500; color: #fff; background: #808080; padding: 10px; margin-bottom: 10px; margin-right: 10px; height: auto;');
+
+
+    testbtn.textContent = 'Test';
+
+    testbtn.addEventListener('click', function (e) {
+
+      print('testing 1 2 3');
+
+      e.stopPropagation();
+
+      var dataurl = lbcanvas.toDataURL('image/png');
+      testlink.href = dataurl;
+
+      testlink.click();
+
+    }, false);
+
+    lbcontrols.appendChild(testlink);
+    lbcontrols.appendChild(testbtn);
+    
+  }
+  
+  
+  
+  
   
   lbtoppanel.appendChild(lbcontrols);
   
   //////////////////////////////
   //													//
-  //				Filters						//
+  //		Filters Container			//
   //													//
   //////////////////////////////
   
   var filters = document.createElement("div");
+  filters.setAttribute('id', 'filter_list')
   filters.setAttribute('style', 'display: flex; flex-flow: row wrap; justify-content: center')
-
+	filters.style.display = 'none'; 
+  
   filters.addEventListener('click', function (e) { e.stopPropagation();}, false);
   
+  // filters get added once an image is loaded
   
-  var nfilters = getFilterCount();
   
-  for (let i = 0; i < nfilters; i++) {
-    
-    var filter = document.createElement("div");
-    filter.setAttribute('style', 'margin-left: 10px; margin-right: 10px; margin-top: 10px')
-    //filter.style.display = 'none';
-    
-    let preview = document.createElement("canvas");
-    preview.textContent = 'No canvas for you';
-    preview.setAttribute('class', 'filter_preview')
-    preview.setAttribute('width', filter_size)
-    preview.setAttribute('height', filter_size)
-    
-    
-    filter.appendChild(preview);
-    
-    let filter_data = getFilter(i);
-    let display_name = filter_data.display_name;
-    let filter_function = filter_data['function'];
-    
-    let preview_label   = document.createElement("p");
-  	preview_label.textContent = display_name;
-    preview_label.setAttribute('style', 'color:#fff; font-size:12px; font-weight:500;');
-    filter.appendChild(preview_label);
-    
-    filters.appendChild(filter);
-    
-    preview.addEventListener('click', function (e) {
-      
-      e.stopPropagation();
-      
-      
-      // reset canvas before applying filter
-      Caman(lbcanvas, function () {
-        
-        this.reset();
-        filter_function(this);
-        this.render();
-        
-      });
-      
-      
-    }, false);
-    
-  }
+  //////////////////////////////
+  //													//
+  //		Stickers Container		//
+  //													//
+  //////////////////////////////
   
+  var stickers = document.createElement("div");
+  stickers.setAttribute('id', 'sticker_list')
+  stickers.setAttribute('style', 'display: flex; flex-flow: row wrap; justify-content: center')
+	stickers.style.display = 'none';
+  
+  stickers.addEventListener('click', function (e) { e.stopPropagation();}, false);
+  
+  
+  //////////////////////////////
+  //													//
+  //		Tweaks Container			//
+  //													//
+  //////////////////////////////
   
 
 
+  
+  
   lightbox.appendChild(lbclose);
   lightbox.appendChild(lbcontent);
   lbcontent.appendChild(lbtoppanel);
   lbcontent.appendChild(filters);
+  lbcontent.appendChild(stickers);
 
   
   parent.appendChild(lightbox);
   
-  print('lightbox complete');
+  if (DEBUG)
+  	print('lightbox complete');
   
   return lightbox;
 }
 
 
 
-
-
+// populates the lightbox
 function loadLightbox(file, image) {
-  
   
   
   var canvas = document.getElementById('canvas');
@@ -4020,92 +4432,401 @@ function loadLightbox(file, image) {
     
     // scale the images down to fit inside the canvas
     // NOTE this will scale images up if they are smaller too
+    // TODO address the aforementioned
     
     if (image.height > image.width) {
-      // let image height = canvas.height
-      // scale image width
+      // if we let image height = canvas.height
+      // then we must scale image width
       factor = canvas.height / image.height;
       width = Math.floor( factor * image.width);
       
-      // center horiz
+      // center src horiz
       xoffset = Math.floor(canvas.width / 2 - width / 2);
     }
     else if (image.width > image.height) {
-      // let image width = canvas.width
-      // scale image height
+      // if we let image width = canvas.width
+      // then we must scale image height
       factor = canvas.width / image.width;
       height = Math.floor( factor * image.height);
       
-      // center vert
+      // center src vert
       yoffset = Math.floor(canvas.height / 2 - height / 2);
     }
     
-    print('loading main preview');
     
-    //ctx.fillStyle = 'green';
-		//ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (DEBUG) {
+      // show alpha portion of the canvas
+      ctx.fillStyle = 'green';
+			ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    else
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    
     ctx.drawImage(image, 0, 0, image.width, image.height, 0+xoffset, 0+yoffset, width, height);
 
 		canvas.file = file;
+    canvas.bgpixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    canvas.procpixels = canvas.bgpixels;
     
     
-    // previews
-    var previews = document.getElementsByClassName('filter_preview')
-		for (let i = 0; i < previews.length; i++) {
-      
-      let preview = previews[i];
-      let pctx = preview.getContext('2d');
-      
-      let pwidth = preview.width;
-      let pheight = preview.height;
-      let pfactor = 1.0;
-      
-      let pxoffset = 0;
-      let pyoffset = 0;
-      
-      if (image.height > image.width) {
-        pfactor = preview.height / image.height;
-        pwidth = Math.floor( pfactor * image.width);
-        
-        // center horiz
-      	pxoffset = Math.floor(preview.width / 2 - pwidth / 2);
-      }
-      else if (image.width > image.height) {
-        pfactor = preview.width / image.width;
-        pheight = Math.floor( pfactor * image.height);
-        
-        // center vert
-      	pyoffset = Math.floor(preview.height / 2 - pheight / 2);
-      }
-      
-      print('loading preview item');
-      pctx.fillStyle = 'black';
-			pctx.fillRect(0, 0, preview.width, preview.height);
-      pctx.drawImage(image, 0, 0, image.width, image.height, 0+pxoffset, 0+pyoffset, pwidth, pheight);
-      
-      let thisfilter = getFilter(i);
-      
-      if (!thisfilter) 
-        break;
-      
-      
-      //Caman(preview, thisfilter['function']);
-      
-      Caman(preview, function () {
-        
-        thisfilter['function'](this);
-        this.render( );
-        
-      });
-      
+    // add filters
+    // only add those considered 'enabled'
+    var nfilters = getFilterCount();
+    var filters = [];
+
+    for (let i = 0; i < nfilters; i++) {
+      let filter = getFilter(i);
+      filters.push(filter);
     }
+    
+    var thumbnail_size = 128;
+    lightboxAddFilters(image, filters, thumbnail_size)
 		
     
   }
 }
 
 
+
+
+function lightboxAddFilters(image, filters, thumbnail_size) {
+  
+  print('adding specified filters');
+  
+  var filter_list = document.querySelector('#filter_list')
+  
+  if (!filter_list)
+    return;
+  
+  
+  var canvas = document.querySelector('#canvas')
+  
+  if (!canvas)
+    return;
+  
+  
+  filter_list.style.display = 'flex';
+  
+  
+  for (let i = 0; i < filters.length; i++) {
+    
+    let filter_group = document.createElement("div");
+    filter_group.setAttribute('style', 'margin-left: 10px; margin-right: 10px; margin-top: 10px')
+    
+    let preview = document.createElement("canvas");
+    preview.textContent = 'No canvas for you';
+    preview.setAttribute('class', 'filter_preview');
+    preview.setAttribute('width', thumbnail_size);
+    preview.setAttribute('height', thumbnail_size);
+    
+    // resize image (ie find best fit) and draw thumbnail
+    let ctx = preview.getContext('2d');
+
+    let width  = thumbnail_size;
+    let height = thumbnail_size;
+    let factor = 1.0;
+
+    let xoffset = 0;
+    let yoffset = 0;
+
+    if (image.height > image.width) {
+      factor = preview.height / image.height;
+      width = Math.floor( factor * image.width);
+
+      // center horiz
+      xoffset = Math.floor(preview.width / 2 - width / 2);
+    }
+    else if (image.width > image.height) {
+      factor = preview.width / image.width;
+      height = Math.floor( factor * image.height);
+
+      // center vert
+      yoffset = Math.floor(preview.height / 2 - height / 2);
+    }
+    
+    
+    //print('loading filter thumbnail');
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, preview.width, preview.height);
+    ctx.drawImage(image, 0, 0, image.width, image.height, 0+xoffset, 0+yoffset, width, height);
+		
+    
+    // render thumbnail w/ filter applied
+    let filter = filters[i];
+    let filter_display_name = filter.display_name;
+    let filter_function = filter['function'];
+    
+    //Caman(preview, thisfilter['function']);
+
+    Caman(preview, function () {
+
+      filter_function(this);
+      this.render( );
+
+    });
+    
+    filter_group.appendChild(preview);
+    
+    
+    // each thumbnail needs a label indicating the filter
+    let label = document.createElement("p");
+  	label.textContent = filter_display_name;
+    label.setAttribute('style', 'color:#fff; font-size:12px; font-weight:500;');
+    
+    filter_group.appendChild(label);
+    
+    
+    // add thumnail group to our filter list
+    print('adding filter thumbnail');
+    filter_list.appendChild(filter_group);
+    
+    
+    // add any event handlers here
+    
+    preview.addEventListener('click', function (e) {
+      
+      e.stopPropagation();
+      
+      // reset canvas before applying filter
+      Caman(canvas, function () {
+        
+        // pop all caman operations
+        this.revert();
+        
+        // restore canvas pixels
+        var ctx = canvas.getContext('2d');
+    		ctx.putImageData(canvas.bgpixels, 0, 0);
+        
+        // inform caman of changes to canvas
+        this.reloadCanvasData();
+        
+        filter_function(this);
+        this.render( function () {
+          
+          // save rendered pixels; to be used when we need to clear canvas
+          canvas.procpixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          lightboxDrawOverlays();
+          
+        });
+        
+      });
+      
+    }, false);
+    
+    // next filter
+  }
+
+  
+}
+
+
+function lightboxShowFilters() {
+  
+  
+  // hide the sticker list
+  // hide the tweaks list
+  // show the filter list
+  var filterlist = document.querySelector('#filter_list');
+  var stickerlist = document.querySelector('#sticker_list');
+
+  if (!filterlist)
+    return;
+
+  if (!stickerlist)
+    return;
+  
+  
+  filterlist.style.display = 'flex';
+  stickerlist.style.display = 'none';
+}
+
+
+function lightboxAddStickers(stickers, canvas_size, sticker_size) {
+  
+  
+  // did we find any stickers?
+  if (stickers.length < 1) {
+    return;
+  }
+
+  // hide the filter list
+  // hide the tweaks list
+  var filterlist = document.querySelector('#filter_list');
+
+  if (!filterlist)
+    return;
+
+  filterlist.style.display = 'none';
+
+
+  // populate the sticker list
+  var stickerlist = document.querySelector('#sticker_list');
+
+  if (!stickerlist)
+    return;
+
+  stickerlist.style.display = 'flex';
+
+  
+  for (let j = 0; j < stickers.length; j++) {
+
+    let sticker_group = document.createElement("div");
+    sticker_group.setAttribute('style', 'margin-left: 10px; margin-right: 10px; margin-top: 10px')
+
+
+    let sticker_preview = document.createElement("img");
+    sticker_preview.setAttribute('class', 'sticker_preview');
+    sticker_preview.setAttribute('width', sticker_size);
+    sticker_preview.setAttribute('height', sticker_size);
+    sticker_preview.style.background = '#808080'
+
+
+    
+    // ~ encodeURIComponent
+    let binary = '';
+    let bytes = new Uint8Array( stickers[j].buffer );
+    let len = bytes.byteLength;
+    for (let k = 0; k < len; k++) {
+      binary += String.fromCharCode( bytes[ k ] );
+    }
+
+    let dataurl = 'data:image/png;base64,' + window.btoa( binary );
+    sticker_preview.src = dataurl;
+
+    sticker_preview.addEventListener('click', function (e) {
+      
+
+      var canvas = document.querySelector('#canvas');
+
+      if (!canvas)
+        return;
+
+      var ctx = canvas.getContext('2d');
+      
+      // center stickers on canvas
+      var canvas_center = Math.round(canvas_size / 2);
+      // drawImage() uses images top left corner. adjust values
+      ctx.drawImage(sticker_preview, canvas_center - stickers[j].width / 2, canvas_center  - stickers[j].height / 2);
+			
+      // add the sticker to the canvas stack
+      // TODO encapsulate the creation of new overlays
+      let overlay_id = canvas.next_stack_id++;
+      canvas.canvasstack.push({'id':overlay_id, 'image':sticker_preview, 'x':canvas_center, 'y':canvas_center, 'width':stickers[j].width, 'height':stickers[j].height})
+
+
+    }, false);
+
+
+
+    // append children
+    sticker_group.appendChild(sticker_preview);
+
+    stickerlist.appendChild(sticker_group);
+
+  }
+  
+  
+}
+
+
+
+function lightboxShowStickers() {
+  
+  
+  // hide the filter list
+  // hide the tweaks list
+  // show the sticker list
+  var filterlist = document.querySelector('#filter_list');
+  var stickerlist = document.querySelector('#sticker_list');
+
+  if (!filterlist)
+    return;
+
+  if (!stickerlist)
+    return;
+  
+  
+  filterlist.style.display = 'none';
+  stickerlist.style.display = 'flex';
+}
+
+
+
+
+function lightboxDrawOverlays() {
+  var canvas = document.querySelector('#canvas');
+  
+  if (!canvas)
+    return;
+  
+  var ctx = canvas.getContext('2d');
+  
+  print('revealing overlay');
+  
+  for (let i = 0; i < canvas.canvasstack.length; i++) {
+    let ovlayitem = canvas.canvasstack[i];
+    ctx.drawImage(ovlayitem.image, ovlayitem.x - ovlayitem.width / 2, ovlayitem.y  - ovlayitem.height / 2)
+  }
+  
+  
+}
+
+
+function lightboxRemoveOverlay(overlay_id) {
+  
+        
+  if (overlay_id < 1) {
+    print('Bad overlay ID');
+    return false;
+  }
+  
+  var canvas = document.querySelector('#canvas');
+  
+  if (!canvas)
+    return false;
+  
+  
+  var index = -1;
+  
+  for (let i = 0; i < canvas.canvasstack.length; i++) {
+    let ovlayitem = canvas.canvasstack[i];
+    if (ovlayitem.id == overlay_id) {
+      index = i;
+      break;
+    }
+  }
+  
+  if (index >= 0) {
+    
+    var removed = canvas.canvasstack.splice(index, 1);
+    
+    if (DEBUG)
+    	print(canvas.canvasstack);
+    
+    var ctx = canvas.getContext('2d');
+    ctx.putImageData(canvas.procpixels, 0, 0);
+    lightboxDrawOverlays();
+    
+    return true;
+  }
+  
+  print('item not found');
+  return false;
+}
+
+
+
+
+function lightboxLoadTweaks() {
+  
+  
+}
+
+
+// atm glam toots your pic from inside the lightbox
+// in the future the lightbox will hopefully be able to add image in compose box
+// and toot proceeds as usual
 function getVisibilityFromUI() {
   
   var itag = document.querySelector('.privacy-dropdown__value-icon i');
@@ -4180,7 +4901,8 @@ function resetUI() {
 }
 
 
-
+// returns the number of enabled filters
+// the user will be able to set which filters in the future
 function getFilterCount() {
   
   var filters = getFilters();
@@ -4189,7 +4911,10 @@ function getFilterCount() {
 }
 
 
-
+// The filters that ship with glam:
+// Note - CamanJS allows users to define new filters
+// TODO document how
+ 
 var _filters = {
 
   normal:  {'function': function (caman) {  },
@@ -4262,6 +4987,7 @@ function getFilters() {
     
   // enabled and in this order
   
+  // TODO fetch from local storage
   var enabled = ['normal', 'vintage', 'sinCity', 'sunrise', 'grungy', 'pinhole', 'glowingSun', 'hazyDays', 'herMajesty', 'nostalgia', 'concentrate'];
   
   for (let i = 0; i < enabled.length; i++) {
@@ -4270,7 +4996,6 @@ function getFilters() {
     filters.push(filter);
   }
   
-    
   
   return filters;
 }
@@ -4288,7 +5013,8 @@ function getFilter(index) {
 
 
 
-
+// add a button to the compose box that lets user choose
+// an image to apply a filter or sticker
 function insertChooseAFile() {
   
   
@@ -4316,7 +5042,7 @@ function insertChooseAFile() {
       for (let i = 0; i < files.length; i++) {
         let file = files[i];
 
-        // only jpegs and pngs are supported
+        // only jpegs and pngs are supported atm
         if (file.type.startsWith('image/jpeg') || file.type.startsWith('image/png')) {
           // were good
         }
@@ -4328,14 +5054,15 @@ function insertChooseAFile() {
         let filesize = file.size;
         let filetype = file.type;
 
-        print(filename); print(filesize); print(filetype);
-
+        if (DEBUG)
+        	print(filename); print(filesize); print(filetype);
 
 
         var img = document.createElement("img");
 
         var reader = new FileReader();
 
+        // add the image to our light after we're done loading it
         reader.addEventListener('load', function () {
 
           print('done reading file');
@@ -4350,6 +5077,7 @@ function insertChooseAFile() {
             var lightbox = createLightbox(body[0]);
           }
           else {
+            // atm not re-using lightox. a new one must be created
             print('found one');
           }
 
@@ -4371,13 +5099,13 @@ function insertChooseAFile() {
 
 
 
-
         reader.readAsDataURL(file);
         
       }
     
     
     }, false);
+    
     
     var iconbutton = document.createElement("button");
     iconbutton.setAttribute('aria-label', 'Add media');
@@ -4401,8 +5129,421 @@ function insertChooseAFile() {
   
   
   
+}
+
+// converts an array of uint bytes into array of ascii/unicode chars
+// ascii if byte value < 128
+function bytesToAscii(bytes)
+{
+  var ascii = [];
+  
+  for (let i = 0; i < bytes.length; i++) {
+    var byte = bytes[i];
+    var char = String.fromCharCode(byte);
+    ascii.push(char);
+  }
+  
+  return ascii;
+}
+
+// takes an array of (ascii) digits representing an octal value
+// returns a decimal number
+// octal digits may be zero padded
+function octalDigitsToDecimalValue(octaldigits) {
+  
+  // used to determine digits used for padding (0s) from
+  // digits that are part of the actual octal 
+  // (not all zeros encountered are for padding)
+  var padding_ended = false; 
+  
+  var total = 0;
+  
+  var valid_digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+  
+  for (let i = 0; i < octaldigits.length; i++) {
+    var digit = octaldigits[i];
+    
+    // quit as soon as a non digit is encountered (e.g. a space)
+    if (valid_digits.indexOf(digit) < 0)
+      break;
+    
+    intdigit = Number(digit);
+    if ( intdigit > 0 )
+      padding_ended = true;
+    
+    if (padding_ended == false)
+      continue;
+    
+    total = total * 8 + intdigit;
+  }
+  
+  
+  return total;
   
 }
+
+// find the *next* nearest block. next ~= ceil 
+// block = 512
+function roundToNearestBlock(value) {
+  
+  var blocksize = 512;
+  
+  return Math.ceil(value/blocksize) * blocksize;
+}
+
+// header is an array of ascii values
+// returns an object with many of the propertiesfound in the tar header:
+//
+//	name, size, type, magic
+//
+function asciiToTarHeader(header) {
+  
+  var object = {};
+  
+  var asciis = [];
+  
+  ////////////////
+  //		MAGIC		//
+  ////////////////
+  
+  asciis = header.slice(257, 257+6);
+  //print(asciis);
+  
+  // must be [ 'u', 's', 't', 'a', 'r', '\0' ]
+  if (asciis[0] == 'u' && asciis[1] == 's' && asciis[2] == 't' && asciis[3] == 'a' && asciis[4] == 'r' ) {
+    // we're good
+  }
+  else {
+    return null;
+  }
+  
+  object['magic'] = 'ustar';
+  
+  
+  ////////////////
+  //		NAME		//
+  ////////////////
+  
+  var name = '';
+  
+  asciis = header.slice(0, 100);
+  //print(asciis);
+  
+  for (let i = 0; i < 100; i++) {
+    let ascii = asciis[i];
+    
+    if (ascii == '\0')
+      break;
+    
+    name += ascii;
+  }
+  
+  object['name'] = name;
+  
+  
+  ////////////////
+  //		SIZE		//
+  ////////////////
+  
+  asciis = header.slice(124, 124+12);
+  //print(asciis);
+
+  var intsize = octalDigitsToDecimalValue(asciis);
+  //print('size ' + intsize);
+  
+  object['size'] = intsize;
+  
+  
+  ////////////////
+  //		TYPE		//
+  ////////////////
+  
+  // '0' = file, '1' = link, '2' = reserved, '3' = char special, '4' = block special, '5' = folder, '6' = FIFO, '7' = reserved
+  asciis = header.slice(156, 157);
+  //print('type=' + asciis);
+  
+  var longtype = '';
+  
+  switch (asciis[0]) {
+    case '0':
+      longtype = 'FILE';
+      break;
+      
+      case '1':
+      longtype = 'LINK';
+      break;
+      
+      case '2':
+      case '7':
+      longtype = 'RESERVED';
+      break;
+      
+      case '3':
+      longtype = 'CHAR';
+      break;
+      
+      case '4':
+      longtype = 'BLOCK';
+      break;
+      
+      case '5':
+      longtype = 'DIRECTORY';
+      break;
+      
+      case '6':
+      longtype = 'FIFO';
+      break;
+      
+    default:
+      return null;
+      
+      }
+  
+  object['type'] = longtype;
+  
+  
+
+  
+  return object;
+}
+
+// bytes is an ArrayBuffer
+function bytesToPngHeader(bytes) {
+  
+  object = {};
+  
+  var uintbytes = new Uint8Array(bytes);
+  //print(uintbytes);
+  
+  ////////////////
+  //		MAGIC		//
+  ////////////////
+  
+  // first 8 bytes must be: 137 80 78 71 13 10 26 10
+  if (uintbytes[0] == 137 && uintbytes[1] == 80 && uintbytes[2] == 78 && uintbytes[3] == 71 
+      && uintbytes[4] == 13 && uintbytes[5] == 10 && uintbytes[6] == 26 && uintbytes[7] == 10) {
+    
+    // we're good
+  }
+  else {
+    return null;
+  }
+  
+  //////////////////
+  //	CHUNK SIZE	//
+  //////////////////
+  
+  // next 4 bytes are the length of the IHDR. Should be 13
+  // Integers values are in so-called network byte order (big endian)
+  // The most significant byte comes first, the least significant byte comes last 
+  // e.g. when using 4 bytes 13 is stored as 00 00 00 13
+  // However most of the times Uint32Array is Little Endian (depends on the host which is usually little endian)
+  // So Uint32Array expects 13 00 00 00 
+  var intbytes = new Uint8Array( bytes.slice(8, 8+4) );
+  intbytes.reverse();
+  intbytes = new Uint32Array(intbytes);
+  
+  var size = intbytes[0];
+  
+  if (size != 13) 
+    return null;
+  
+  object['chunk_size'] = size;
+  
+  
+  //////////////////
+  //	CHUNK TYPE	//
+  //////////////////
+  
+  // next 4 bytes are the chunk type (IHDR)
+  uintbytes = new Uint8Array( bytes.slice(12, 12+4) );
+  //print(uintbytes);
+  
+  var chunk_type = '';
+  
+  for (let i = 0; i < 4; i++) {
+    let byte = uintbytes[i];
+    let char = String.fromCharCode(byte);
+    chunk_type += char;
+  }
+  
+  object['chunk_type'] = chunk_type;
+  
+  
+  //////////////////
+  //	IMAGE WIDTH	//
+  //////////////////
+  
+  // next 4 bytes are the width
+  intbytes = new Uint8Array( bytes.slice(16, 16+4) );
+  intbytes.reverse();
+  intbytes = new Uint32Array(intbytes);
+  
+  var width = intbytes[0];
+  
+  if (width == 0)
+    return null;
+  object['width'] = width;
+  
+  //////////////////
+  // IMAGE HEIGHT	//
+  //////////////////
+  
+  // next 4 bytes are the height
+  intbytes = new Uint8Array( bytes.slice(20, 20+4) );
+  intbytes.reverse();
+  intbytes = new Uint32Array(intbytes);
+  
+  var height = intbytes[0];
+  if (height == 0)
+    return null;
+  object['height'] = height;
+  
+  //print(' ' + width + 'x' + height);
+  
+  
+  return object;
+}
+
+
+// XXX
+/*
+function insertChooseASticker() {
+  
+  
+  var target = document.querySelector('.logos'); // DEBUG
+  
+  
+  if (target) {
+    
+    // this is the hutton the iconbutton (below) will trigger
+    var button = document.createElement("input");
+    button.setAttribute('type', 'file');
+    button.setAttribute('accept', '.tar,application/tar');
+    button.setAttribute('id', 'sticker_input');
+    button.setAttribute('name', 'stickers');
+    //button.setAttribute('style', 'display: none;');
+    button.textContent = 'Sticker';
+    
+    button.addEventListener('change', function (e) {
+    
+    
+      var files = e.target.files;
+
+      for (let i = 0; i < files.length; i++) {
+        let file = files[i];
+
+        
+        
+        // only uncompressed tar files supported. 
+        if (file.type.startsWith('application/tar') || file.type.startsWith('application/x-tar')) {
+          // were good
+        }
+        else
+          continue;
+
+
+        let filename = file.name;
+        let filesize = file.size;
+        let filetype = file.type;
+				
+        print(filename); print(filesize); print(filetype);
+        
+
+        var reader = new FileReader();
+
+        reader.addEventListener('loadend', function () {
+
+          print('done loading tar file');
+          var data = reader.result;
+          
+          var stickers = [];
+          
+          var offset = 0;
+          
+          // every item in a tar file has a 512-byte header
+          // a final header is appended. all bytes in this final header == '\0'
+          var max_items = 32;
+          
+          for (let j = 0; j < max_items; j++) {
+            
+            let bytes = data.slice(offset, offset+512);
+          	let header = new Uint8Array(bytes);
+            
+            // header is always ascii
+            let header_ascii = bytesToAscii(header);
+            //print(header_ascii);
+            //print(header_ascii.length);
+            
+            let headerobj = asciiToTarHeader(header_ascii);
+            
+            if (!headerobj)
+              break;
+            
+            let add_sticker = true;
+            
+            // don't add folders
+            if (headerobj.type != 'FILE')
+              add_sticker = false;
+            
+            // don't add dot files
+            if (headerobj.name[0] == '.')
+              add_sticker = false;
+            
+            if (add_sticker) {
+              
+              let pngbytes = data.slice(offset + 512, offset + 512 + headerobj.size);
+              //print(pngbytes);
+              let pngheader = bytesToPngHeader(pngbytes);
+              
+              if (pngheader && pngheader.width <= 255 && pngheader.height <= 255) {
+                print('Adding ' + headerobj.name);
+              	print(headerobj.size);
+                
+                var sticker = new File(new Uint8Array(pngbytes), headerobj.name, {type:'image/png'});
+                print(sticker);
+                stickers.push(sticker);
+              }
+            }
+            
+            let nextblock = roundToNearestBlock(headerobj.size);
+            //print(nextblock);
+            
+            // nextblock is the number of bytes to the next header beginning where the current header ends
+            // thus, newoffset = header.length + nextblock
+            offset += 512 + nextblock;
+            
+            print('---------------------------------');
+          }
+          
+
+          
+          
+          
+          
+
+        }, false);
+
+
+
+        reader.readAsArrayBuffer(file);
+        
+      }
+    
+    
+    }, false);
+    
+    
+    
+    target.appendChild(button);
+  }
+  
+  
+  
+  
+}
+
+*/
 
 
 function get_access_token() {
