@@ -1,7 +1,7 @@
 # Glam
 User-Script that adds image filters, stickers, and image tweaking tools on Mastodon sites<sup>1</sup>
 
-> 1. Stickers and tools will be made available soon.
+> 1. tools will be made available soon.
 
 Runs on Firefox running GreaseMonkey and Chrome (running natively as an extension).
 
