@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name     glamodon
+// @name     glam
 // @namespace   spaceotter
 // @author   spaceotter@mastodon.art
-// @version  0.2
+// @version  0.3
 // @grant    none
 // @include  http://amer*
 // @include https://mastodon.social/*
@@ -3794,13 +3794,16 @@ function createLightbox(parent) {
   //
   //		'image': obj,	// HTMLImageElement
   //
-  //		'width':int, 
+  //		'width':int, // current width & height
   //		'height':int,
   //
   //		'x':int,			// the center of the overlay
   //		'y':int,			// the center of the overlay
   //
-  //		'click_offset':{'x':int, 'y':int} // (reserved) to keep the dragged item from snapping its center to cursor
+  //		'click_offset':{'x':int, 'y':int}, // (reserved) to keep the dragged item from snapping its center to cursor
+  //
+  //		'srcwidth':int,	// the original width & height
+  //		'srcheight':int
 	//  }
   //
   lbcanvas.canvasstack = [];
@@ -3811,15 +3814,20 @@ function createLightbox(parent) {
   lbcanvas.bgpixel    = null; // a copy of the unfiltered image w/ no overlays
   lbcanvas.procpixels = null; // a copy of the filtered image w/ no overlays
   
+  // convenience var
+  var _ctx = lbcanvas.getContext('2d');
   
   //////////////////////
   // overlay controls	//
   //////////////////////
   
-  // widgets that associated with overlays
+  var controls_width = 150;
+  var ovbtnwidth = 32;
+  
+  // widgets that associated with overlays divided into two groups: buttons and slider
   var ovlaycontrols = document.createElement("div");
   ovlaycontrols.setAttribute('id', 'overlay_controls');
-  ovlaycontrols.setAttribute('style', 'position: absolute;');
+  ovlaycontrols.setAttribute('style', 'position: absolute; display: block;');
   ovlaycontrols.style.display = 'none';
   
   ovlaycontrols.overlay_id = 0;
@@ -3833,9 +3841,37 @@ function createLightbox(parent) {
   }, false);
   
   
-  var rmwidth = 32;
+  var ovlaybuttons = document.createElement("div");
+  ovlaybuttons.setAttribute('style', 'display:flex; flex-basis: ' + controls_width + 'px; justify-content: flex-end;');
+  ovlaycontrols.appendChild(ovlaybuttons);
+  
+  
+  // scale overlay
+  var ovlayscale = document.createElement("button");
+  ovlayscale.setAttribute('style', 'width: ' + ovbtnwidth +'px; height: ' + ovbtnwidth + 'px; border-radius:' + ovbtnwidth + 'px; border: 0; font-size: 18px; font-weight:500; color: #fff; background: rgba(0.8,0.8,0.8,.5); margin-right: 10px;');
+  ovlayscale.textContent = ' + ';
+  
+  ovlayscale.addEventListener('click', function (e) {
+    
+    e.stopPropagation();
+    
+    print('show slider');
+    var slider = document.querySelector('#overlay_sliders :first-child');
+    
+    print(slider);
+    
+    if (slider) {
+      slider.style.display = 'block';
+    }
+    
+  }, false);
+  
+  
+  ovlaybuttons.appendChild(ovlayscale);
+  
+  // remove overlay
   var ovlayremove = document.createElement("button");
-  ovlayremove.setAttribute('style', 'display: block; width: ' + rmwidth +'px; height: ' + rmwidth + 'px; border-radius:' + rmwidth + 'px; border: 0; font-size: 18px; font-weight:500; color: #fff; background: rgba(0.8,0.8,0.8,.5);');
+  ovlayremove.setAttribute('style', 'width: ' + ovbtnwidth +'px; height: ' + ovbtnwidth + 'px; border-radius:' + ovbtnwidth + 'px; border: 0; font-size: 18px; font-weight:500; color: #fff; background: rgba(0.8,0.8,0.8,.5);');
   ovlayremove.textContent = ' x ';
   
   ovlayremove.addEventListener('click', function (e) {
@@ -3850,14 +3886,53 @@ function createLightbox(parent) {
     
   }, false);
   
-  ovlaycontrols.appendChild(ovlayremove);
+  ovlaybuttons.appendChild(ovlayremove);
+  
+  
+  var ovlaysliders = document.createElement("div");
+  ovlaysliders.setAttribute('id', 'overlay_sliders');
+  ovlaysliders.setAttribute('style', 'width: ' + controls_width + 'px; justify-content: flex-end; height:32px; background: rgba(0, 0, 0, 0.0);');
+  ovlaysliders.addEventListener('click', function (e) {e.stopPropagation()}, false);
+  ovlaycontrols.appendChild(ovlaysliders);
+  
+  var scaleslider = document.createElement("input");
+  scaleslider.style.display = 'none';
+  scaleslider.setAttribute('type', 'range');
+  scaleslider.setAttribute('min', '0.2');
+  scaleslider.setAttribute('max', '2.0');
+  scaleslider.setAttribute('step', '0.1');
+  
+  scaleslider.addEventListener('input', function (e) {
+    
+    e.stopPropagation();
+    
+    print(scaleslider.value);
+    
+    lightboxScaleOverlay(ovlaycontrols.overlay_id, Number(scaleslider.value), lbcanvas, _ctx);
+    
+  }, false);
+  
+  scaleslider.addEventListener('mouseleave', function (e) {
+    
+    e.stopPropagation();
+    
+    print('hide slider');
+    var slider = document.querySelector('#overlay_sliders :first-child');
+    
+    
+    if (slider) {
+      slider.style.display = 'none';
+    }
+    
+  }, false);
+  
+  ovlaysliders.appendChild(scaleslider);
   
   
   canvasdiv.appendChild(ovlaycontrols);
   
   
-  // convenience var
-  var _ctx = lbcanvas.getContext('2d');
+  
   
   
   // events for manipulating elements on the canvas stack: e.g. stickers and UI indicators
@@ -3942,7 +4017,7 @@ function createLightbox(parent) {
         let ytopleft = ovlayitem.y - ovlayitem.height / 2;
 
         if (e.offsetX > xtopleft && e.offsetX < xtopleft + ovlayitem.width && e.offsetY > ytopleft && e.offsetY < ytopleft + ovlayitem.height) {
-          print('found a match');
+          //print('found a match');
           target = ovlayitem;
           break;
         }
@@ -3951,13 +4026,12 @@ function createLightbox(parent) {
       // if we found an overlay...
       if (target) {
         
-        // update the stack controls buttons
+        // update the overlay controls
         let controls = document.querySelector('#overlay_controls');
 
-        // as there's only one control atm, place control on top right corner
         if (controls) {
           
-          let xoffset = target.x + target.width / 2 - rmwidth / 2;
+          let xoffset = (target.x - target.width / 2) + (target.width - controls_width);
           let yoffset = (target.y - target.height / 2);
           
           controls.style.left = '' + xoffset + 'px';
@@ -3967,7 +4041,7 @@ function createLightbox(parent) {
           controls.overlay_id = target.id;
           
           // don't show if control is too far to the right of canvas or too far above
-          if (xoffset > canvas_size - rmwidth / 2 || yoffset < -rmwidth / 2)
+          if (xoffset > canvas_size - ovbtnwidth / 2 || yoffset < -ovbtnwidth / 2)
           	controls.style.display = 'none';
           else
             controls.style.display = 'block';
@@ -4014,6 +4088,11 @@ function createLightbox(parent) {
     if (controls) {
       controls.style.display = 'none';
     }
+    
+    var slider = document.querySelector('#overlay_sliders :first-child');
+    
+    if (slider)
+      slider.style.display = 'none';
     
   }, false);
   
@@ -4315,9 +4394,10 @@ function createLightbox(parent) {
   lbcontrols.appendChild(editbtn);
   
   
+  // TEST BUTTON
   
   if (DEBUG) {
-    // TEST BUTTON
+    
     var testlink = document.createElement("a");
     testlink.download = 'export.png';
     testlink.style.display = 'none';
@@ -4334,11 +4414,13 @@ function createLightbox(parent) {
       print('testing 1 2 3');
 
       e.stopPropagation();
-
+      
+      
       var dataurl = lbcanvas.toDataURL('image/png');
       testlink.href = dataurl;
 
       testlink.click();
+      
 
     }, false);
 
@@ -4361,7 +4443,7 @@ function createLightbox(parent) {
   
   var filters = document.createElement("div");
   filters.setAttribute('id', 'filter_list')
-  filters.setAttribute('style', 'display: flex; flex-flow: row wrap; justify-content: center')
+  filters.setAttribute('style', 'display: flex; flex-flow: row nowrap; width: 100%; overflow-y: auto;')
 	filters.style.display = 'none'; 
   
   filters.addEventListener('click', function (e) { e.stopPropagation();}, false);
@@ -4377,7 +4459,7 @@ function createLightbox(parent) {
   
   var stickers = document.createElement("div");
   stickers.setAttribute('id', 'sticker_list')
-  stickers.setAttribute('style', 'display: flex; flex-flow: row wrap; justify-content: center')
+  stickers.setAttribute('style', 'display: flex; flex-flow: row nowrap; width: 100%; overflow-y: auto;')
 	stickers.style.display = 'none';
   
   stickers.addEventListener('click', function (e) { e.stopPropagation();}, false);
@@ -4712,7 +4794,7 @@ function lightboxAddStickers(stickers, canvas_size, sticker_size) {
       // add the sticker to the canvas stack
       // TODO encapsulate the creation of new overlays
       let overlay_id = canvas.next_stack_id++;
-      canvas.canvasstack.push({'id':overlay_id, 'image':sticker_preview, 'x':canvas_center, 'y':canvas_center, 'width':stickers[j].width, 'height':stickers[j].height})
+      canvas.canvasstack.push({'id':overlay_id, 'image':sticker_preview, 'x':canvas_center, 'y':canvas_center, 'width':stickers[j].width, 'height':stickers[j].height, 'srcwidth':stickers[j].width, 'srcheight':stickers[j].height})
 
 
     }, false);
@@ -4766,7 +4848,7 @@ function lightboxDrawOverlays() {
   
   for (let i = 0; i < canvas.canvasstack.length; i++) {
     let ovlayitem = canvas.canvasstack[i];
-    ctx.drawImage(ovlayitem.image, ovlayitem.x - ovlayitem.width / 2, ovlayitem.y  - ovlayitem.height / 2)
+    ctx.drawImage(ovlayitem.image, ovlayitem.x - ovlayitem.width / 2, ovlayitem.y  - ovlayitem.height / 2, ovlayitem.width, ovlayitem.height)
   }
   
   
@@ -4815,6 +4897,34 @@ function lightboxRemoveOverlay(overlay_id) {
   return false;
 }
 
+// TODO optimize by req caller to supply overlay item in lieu of id
+function lightboxScaleOverlay(overlay_id, factor, canvas, ctx) {
+  
+  if (overlay_id < 1) {
+    print('Bad overlay ID');
+    return false;
+  }
+  
+  
+  for (let i = 0; i < canvas.canvasstack.length; i++) {
+    let ovlayitem = canvas.canvasstack[i];
+    if (ovlayitem.id == overlay_id) {
+      
+      ovlayitem.width = Math.round(ovlayitem.srcwidth * factor);
+      ovlayitem.height = Math.round(ovlayitem.srcheight * factor);
+      
+      ctx.putImageData(canvas.procpixels, 0, 0);
+      lightboxDrawOverlays();
+      
+      return true;
+    }
+  }
+  
+  
+  
+  print('item not found');
+  return false;
+}
 
 
 
@@ -5406,144 +5516,6 @@ function bytesToPngHeader(bytes) {
 }
 
 
-// XXX
-/*
-function insertChooseASticker() {
-  
-  
-  var target = document.querySelector('.logos'); // DEBUG
-  
-  
-  if (target) {
-    
-    // this is the hutton the iconbutton (below) will trigger
-    var button = document.createElement("input");
-    button.setAttribute('type', 'file');
-    button.setAttribute('accept', '.tar,application/tar');
-    button.setAttribute('id', 'sticker_input');
-    button.setAttribute('name', 'stickers');
-    //button.setAttribute('style', 'display: none;');
-    button.textContent = 'Sticker';
-    
-    button.addEventListener('change', function (e) {
-    
-    
-      var files = e.target.files;
-
-      for (let i = 0; i < files.length; i++) {
-        let file = files[i];
-
-        
-        
-        // only uncompressed tar files supported. 
-        if (file.type.startsWith('application/tar') || file.type.startsWith('application/x-tar')) {
-          // were good
-        }
-        else
-          continue;
-
-
-        let filename = file.name;
-        let filesize = file.size;
-        let filetype = file.type;
-				
-        print(filename); print(filesize); print(filetype);
-        
-
-        var reader = new FileReader();
-
-        reader.addEventListener('loadend', function () {
-
-          print('done loading tar file');
-          var data = reader.result;
-          
-          var stickers = [];
-          
-          var offset = 0;
-          
-          // every item in a tar file has a 512-byte header
-          // a final header is appended. all bytes in this final header == '\0'
-          var max_items = 32;
-          
-          for (let j = 0; j < max_items; j++) {
-            
-            let bytes = data.slice(offset, offset+512);
-          	let header = new Uint8Array(bytes);
-            
-            // header is always ascii
-            let header_ascii = bytesToAscii(header);
-            //print(header_ascii);
-            //print(header_ascii.length);
-            
-            let headerobj = asciiToTarHeader(header_ascii);
-            
-            if (!headerobj)
-              break;
-            
-            let add_sticker = true;
-            
-            // don't add folders
-            if (headerobj.type != 'FILE')
-              add_sticker = false;
-            
-            // don't add dot files
-            if (headerobj.name[0] == '.')
-              add_sticker = false;
-            
-            if (add_sticker) {
-              
-              let pngbytes = data.slice(offset + 512, offset + 512 + headerobj.size);
-              //print(pngbytes);
-              let pngheader = bytesToPngHeader(pngbytes);
-              
-              if (pngheader && pngheader.width <= 255 && pngheader.height <= 255) {
-                print('Adding ' + headerobj.name);
-              	print(headerobj.size);
-                
-                var sticker = new File(new Uint8Array(pngbytes), headerobj.name, {type:'image/png'});
-                print(sticker);
-                stickers.push(sticker);
-              }
-            }
-            
-            let nextblock = roundToNearestBlock(headerobj.size);
-            //print(nextblock);
-            
-            // nextblock is the number of bytes to the next header beginning where the current header ends
-            // thus, newoffset = header.length + nextblock
-            offset += 512 + nextblock;
-            
-            print('---------------------------------');
-          }
-          
-
-          
-          
-          
-          
-
-        }, false);
-
-
-
-        reader.readAsArrayBuffer(file);
-        
-      }
-    
-    
-    }, false);
-    
-    
-    
-    target.appendChild(button);
-  }
-  
-  
-  
-  
-}
-
-*/
 
 
 function get_access_token() {
