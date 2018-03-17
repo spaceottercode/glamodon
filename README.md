@@ -29,17 +29,16 @@ On Chrome, no plugin is needed to run a User-Script like this one. Drag the scri
 
 ### filters
 
-- [ ] the ability to scroll filters left and right
 - [ ] the ability to add and remove filters
 - [ ] the ability to reorder filters
 - [ ] document how to make custom filters
-- [ ] the ability to add frame borders
+- [ ] a filter to add borders/frames
 
 ### stickers
 
 - [x] adding stickers is a high priority. ideally should be extensible and distributable. 
   Simplest way atm is to allow any png (of limited size) to be imported as a sticker
-- [ ] ability to scale stickers
+- [x] ability to scale stickers
 - [ ] ability to rotate stickers (might be dificult+expensive with a 2D canvas)
 - [ ] Of lesser priority but nice to have: animated stickers
 
@@ -80,4 +79,8 @@ For linux and mac users, you can run the `tar` command in a terminal by navigati
 ~~~
 tar cvf tarfile_name.tar *.png 
 ~~~
+
+### 0.3
+
+stickers can now be scaled.
 
