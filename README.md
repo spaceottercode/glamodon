@@ -48,9 +48,9 @@ i.e. utilities. This is where you'll find things like the focal point tool and o
 
 - [ ] focal point
 - [ ] rotate CW, CCW, flip
-- [ ] brightness & contrast
-- [ ] saturation
-- [ ] curves, exposure, gamma
+- [x] brightness & contrast
+- [x] saturation
+- [x] exposure, gamma
 - [ ] color tweaks
 - [ ] blurs
 - [ ] text
@@ -83,4 +83,8 @@ tar cvf tarfile_name.tar *.png
 ### 0.3
 
 stickers can now be scaled.
+
+### 0.5
+
+now includes tools for adjusting the brightness & contrast, exposure, gamma, hue & saturation, and the vibrance of an image.
 
