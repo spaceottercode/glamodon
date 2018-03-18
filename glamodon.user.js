@@ -2,7 +2,7 @@
 // @name     glam
 // @namespace   spaceotter
 // @author   spaceotter@mastodon.art
-// @version  0.3
+// @version  0.5
 // @grant    none
 // @include  http://amer*
 // @include https://mastodon.social/*
@@ -3744,7 +3744,7 @@ function createLightbox(parent) {
   //////////////////////////////
   
   var lightbox  = document.createElement("div");
-  lightbox.setAttribute('id', 'lightbox')
+  lightbox.setAttribute('id', 'lightbox');
   lightbox.setAttribute('style', 'position:fixed; top:0; left:0; width:100%; height:100%; text-align:center; background:rgba(0,0,0,.7);');
   lightbox.style.display = 'none';
   
@@ -3766,7 +3766,7 @@ function createLightbox(parent) {
   
   
   var lbtoppanel = document.createElement("div");
-  lbtoppanel.setAttribute('style', 'display: flex; flex-flow: row wrap; justify-content: center; margin-top: 10px; margin-bottom: 10px')
+  lbtoppanel.setAttribute('style', 'display: flex; flex-flow: row nowrap; justify-content: center; margin-top: 10px; margin-bottom: 10px;');
   
   
   //////////////////////////////
@@ -3780,9 +3780,9 @@ function createLightbox(parent) {
   
   var lbcanvas = document.createElement("canvas");
   lbcanvas.textContent = 'No canvas for you';
-  lbcanvas.setAttribute('id', 'canvas')
-  lbcanvas.setAttribute('width', canvas_size)
-  lbcanvas.setAttribute('height', canvas_size)
+  lbcanvas.setAttribute('id', 'canvas');
+  lbcanvas.setAttribute('width', canvas_size);
+  lbcanvas.setAttribute('height', canvas_size);
   
   // stack is used to repr canvas items that (virtually) sit above the canvas image
   // these items are collectively called overlays
@@ -3813,6 +3813,8 @@ function createLightbox(parent) {
   lbcanvas.follower   = null;
   lbcanvas.bgpixel    = null; // a copy of the unfiltered image w/ no overlays
   lbcanvas.procpixels = null; // a copy of the filtered image w/ no overlays
+  lbcanvas.currfilter = null; // the last filter function called. because there can only be one, also the repr current filter
+  lbcanvas.tweakstack = [];		// determines the order that tweaks are applied. atm only one tweak per type
   
   // convenience var
   var _ctx = lbcanvas.getContext('2d');
@@ -3879,7 +3881,7 @@ function createLightbox(parent) {
     e.stopPropagation();
     
     print('removing overlay item');
-    lightboxRemoveOverlay(ovlaycontrols.overlay_id)
+    lightboxRemoveOverlay(ovlaycontrols.overlay_id);
     
     ovlaycontrols.overlay_id = 0;
     ovlaycontrols.style.display = 'none';
@@ -4000,7 +4002,7 @@ function createLightbox(parent) {
         lbcanvas.follower.x = e.offsetX;
         lbcanvas.follower.y = e.offsetY;
         
-        lightboxDrawOverlays()
+        lightboxDrawOverlays();
       }
       
     }
@@ -4108,10 +4110,10 @@ function createLightbox(parent) {
   //////////////////////////////
   
   // TOOT BUTTON
-  // once images are integrted back into the compose box, this button becomes a Done button
+  // once images are integrated back into the compose box, this button becomes a Done button
   
   var lbcontrols = document.createElement("div");
-  lbcontrols.setAttribute('style', 'display: flex; flex-flow: column nowrap; position:absolute; right: 100px; top: 100px; width: 150px;')
+  lbcontrols.setAttribute('style', 'display: flex; flex-flow: column nowrap; position:absolute; right: 100px; top: 100px; width: 150px;');
   
   var postbtn = document.createElement("button");
   postbtn.setAttribute('style', 'display: block; width: 100%; border-radius:4px; border: 0; font-size: 18px; font-weight:500; color: #fff; background: #2b90d9; padding: 10px; margin-bottom: 10px; margin-right: 10px; height: auto;');
@@ -4308,6 +4310,7 @@ function createLightbox(parent) {
 
             let pngbytes = data.slice(offset + 512, offset + 512 + headerobj.size);
             //print(pngbytes);
+            // returns null if not a png
             let pngheader = bytesToPngHeader(pngbytes);
 
             if (pngheader && pngheader.width <= 255 && pngheader.height <= 255) {
@@ -4329,7 +4332,7 @@ function createLightbox(parent) {
         }
         
         // XXX rename pngbuffers. should these args be properties of the canvas or esily accessible otherwise
-        lightboxAddStickers(pngbuffers, canvas_size, sticker_size)
+        lightboxAddStickers(pngbuffers, canvas_size, sticker_size);
 
       }, false);
 
@@ -4379,7 +4382,7 @@ function createLightbox(parent) {
   
   // TWEAKS BUTTON (e.g. rotate CW, focal point, brightness+contrast, exposure, crop, text)
   var editbtn = document.createElement("button");
-  editbtn.setAttribute('style', 'display: block; width: 100%; border-radius:4px; border: 0; font-size: 18px; font-weight:500; color: #fff; background: #808080; padding: 10px; margin-bottom: 10px; margin-right: 10px; height: auto;');
+  editbtn.setAttribute('style', 'display: block; width: 100%; border-radius:4px; border: 0; font-size: 18px; font-weight:500; color: #fff; background: #2b90d9; padding: 10px; margin-bottom: 10px; margin-right: 10px; height: auto;');
   
   
   editbtn.textContent = 'Tweaks';
@@ -4388,6 +4391,8 @@ function createLightbox(parent) {
     
     print('tweak tweak');
     e.stopPropagation();
+    
+    lightboxShowTweaks();
     
   }, false);
   
@@ -4442,8 +4447,8 @@ function createLightbox(parent) {
   //////////////////////////////
   
   var filters = document.createElement("div");
-  filters.setAttribute('id', 'filter_list')
-  filters.setAttribute('style', 'display: flex; flex-flow: row nowrap; width: 100%; overflow-y: auto;')
+  filters.setAttribute('id', 'filter_list');
+  filters.setAttribute('style', 'display: flex; flex-flow: row nowrap; width: 100%; overflow-y: auto;');
 	filters.style.display = 'none'; 
   
   filters.addEventListener('click', function (e) { e.stopPropagation();}, false);
@@ -4458,8 +4463,8 @@ function createLightbox(parent) {
   //////////////////////////////
   
   var stickers = document.createElement("div");
-  stickers.setAttribute('id', 'sticker_list')
-  stickers.setAttribute('style', 'display: flex; flex-flow: row nowrap; width: 100%; overflow-y: auto;')
+  stickers.setAttribute('id', 'sticker_list');
+  stickers.setAttribute('style', 'display: flex; flex-flow: row nowrap; width: 100%; overflow-y: auto;');
 	stickers.style.display = 'none';
   
   stickers.addEventListener('click', function (e) { e.stopPropagation();}, false);
@@ -4472,7 +4477,38 @@ function createLightbox(parent) {
   //////////////////////////////
   
 
+  var tweaks = document.createElement("div");
+  tweaks.setAttribute('id', 'tweak_list');
+  tweaks.setAttribute('style', 'display: flex; flex-flow: row nowrap; width: 100%; overflow-y: auto;');
+	tweaks.style.display = 'none';
+  
+  tweaks.addEventListener('click', function (e) { e.stopPropagation();}, false);
 
+  // tweak container also holds the current values of all tweak operations
+  tweaks.settings = {
+    brightness: {default_value:0, current_value:0},
+    contrast: 	{default_value:0, current_value:0},
+    saturation: {default_value:0, current_value:0},
+    exposure: 	{default_value:0, current_value:0},
+    gamma: 			{default_value:1, current_value:1},
+    hue: 				{default_value:0, current_value:0},
+    sepia: 			{default_value:0, current_value:0},
+    vibrance: 	{default_value:0, current_value:0}
+  };
+  
+  //////////////////////////////
+  //													//
+  //	Tweak Options Container	//
+  //													//
+  //////////////////////////////
+  
+
+  var tweakopts = document.createElement("div");
+  tweakopts.setAttribute('id', 'tweak_options');
+  tweakopts.setAttribute('style', 'display: flex; flex-flow: row nowrap; width: 100%; overflow-y: auto;');
+	tweakopts.style.display = 'none';
+  
+  tweakopts.addEventListener('click', function (e) { e.stopPropagation();}, false);
   
   
   lightbox.appendChild(lbclose);
@@ -4480,7 +4516,8 @@ function createLightbox(parent) {
   lbcontent.appendChild(lbtoppanel);
   lbcontent.appendChild(filters);
   lbcontent.appendChild(stickers);
-
+	lbcontent.appendChild(tweaks);
+  lbcontent.appendChild(tweakopts);
   
   parent.appendChild(lightbox);
   
@@ -4494,7 +4531,6 @@ function createLightbox(parent) {
 
 // populates the lightbox
 function loadLightbox(file, image) {
-  
   
   var canvas = document.getElementById('canvas');
   
@@ -4562,13 +4598,81 @@ function loadLightbox(file, image) {
       filters.push(filter);
     }
     
-    var thumbnail_size = 128;
-    lightboxAddFilters(image, filters, thumbnail_size)
-		
     
+    var thumbnail_size = 128;
+    lightboxAddFilters(image, filters, thumbnail_size);
+    
+		lightboxAddTweaks();
+    lightboxAddTweakOptions();
   }
 }
 
+
+
+
+
+function processTweaksAndFilter(canvas) {
+  
+  Caman(canvas, function () {
+        
+    // pop all caman operations
+    this.revert();
+
+    // restore canvas pixels
+    var ctx = canvas.getContext('2d');
+    ctx.putImageData(canvas.bgpixels, 0, 0);
+
+    // inform caman of changes to canvas
+    this.reloadCanvasData();
+
+    // apply all tweaks on the tweak stack
+    for (let i = 0; i < canvas.tweakstack.length; i++) {
+      let currtweak = canvas.tweakstack[i];
+
+      print('applying' + currtweak.type + ': ' + currtweak.value);
+      
+      if (currtweak.type == 'brightness') {
+        this.brightness(currtweak.value);
+      }
+      else if (currtweak.type == 'contrast') {
+        this.contrast(currtweak.value);
+      }
+      else if (currtweak.type == 'exposure') {
+        this.exposure(currtweak.value);
+      }
+      else if (currtweak.type == 'gamma') {
+        this.gamma(currtweak.value);
+      }
+      else if (currtweak.type == 'hue') {
+        this.hue(currtweak.value);
+      }
+      else if (currtweak.type == 'saturation') {
+        this.saturation(currtweak.value);
+      }
+      else if (currtweak.type == 'sepia') {
+        this.sepia(currtweak.value);
+      }
+      else if (currtweak.type == 'vibrance') {
+        this.vibrance(currtweak.value);
+      }
+      
+
+    }
+
+    // re-apply last filter, if any
+    if (canvas.currfilter)
+      canvas.currfilter(this);
+
+    this.render( function () {
+
+      // save rendered pixels; to be used when we need to clear canvas
+      canvas.procpixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      lightboxDrawOverlays();
+
+    });
+
+  });
+}
 
 
 
@@ -4576,13 +4680,13 @@ function lightboxAddFilters(image, filters, thumbnail_size) {
   
   print('adding specified filters');
   
-  var filter_list = document.querySelector('#filter_list')
+  var filter_list = document.querySelector('#filter_list');
   
   if (!filter_list)
     return;
   
   
-  var canvas = document.querySelector('#canvas')
+  var canvas = document.querySelector('#canvas');
   
   if (!canvas)
     return;
@@ -4594,7 +4698,7 @@ function lightboxAddFilters(image, filters, thumbnail_size) {
   for (let i = 0; i < filters.length; i++) {
     
     let filter_group = document.createElement("div");
-    filter_group.setAttribute('style', 'margin-left: 10px; margin-right: 10px; margin-top: 10px')
+    filter_group.setAttribute('style', 'margin-left: 10px; margin-right: 10px; margin-top: 10px');
     
     let preview = document.createElement("canvas");
     preview.textContent = 'No canvas for you';
@@ -4669,37 +4773,14 @@ function lightboxAddFilters(image, filters, thumbnail_size) {
     preview.addEventListener('click', function (e) {
       
       e.stopPropagation();
-      
-      // reset canvas before applying filter
-      Caman(canvas, function () {
-        
-        // pop all caman operations
-        this.revert();
-        
-        // restore canvas pixels
-        var ctx = canvas.getContext('2d');
-    		ctx.putImageData(canvas.bgpixels, 0, 0);
-        
-        // inform caman of changes to canvas
-        this.reloadCanvasData();
-        
-        filter_function(this);
-        this.render( function () {
-          
-          // save rendered pixels; to be used when we need to clear canvas
-          canvas.procpixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          lightboxDrawOverlays();
-          
-        });
-        
-      });
+      canvas.currfilter = filter_function;
+      processTweaksAndFilter(canvas);
       
     }, false);
     
     // next filter
   }
 
-  
 }
 
 
@@ -4708,19 +4789,30 @@ function lightboxShowFilters() {
   
   // hide the sticker list
   // hide the tweaks list
+  // hide the tweak options
   // show the filter list
-  var filterlist = document.querySelector('#filter_list');
+  var filterlist  = document.querySelector('#filter_list');
   var stickerlist = document.querySelector('#sticker_list');
-
+	var tweaklist   = document.querySelector('#tweak_list');
+  var tweakopts   = document.querySelector('#tweak_options');
+  
   if (!filterlist)
     return;
 
   if (!stickerlist)
     return;
   
+  if (!tweaklist)
+    return;
   
-  filterlist.style.display = 'flex';
+  if (!tweakopts)
+    return;
+  
+  filterlist.style.display  = 'flex';
   stickerlist.style.display = 'none';
+  tweaklist.style.display   = 'none';
+  tweakopts.style.display   = 'none';
+  
 }
 
 
@@ -4735,12 +4827,21 @@ function lightboxAddStickers(stickers, canvas_size, sticker_size) {
   // hide the filter list
   // hide the tweaks list
   var filterlist = document.querySelector('#filter_list');
-
+	var tweaklist  = document.querySelector('#tweak_list');
+  var tweakopts   = document.querySelector('#tweak_options');
+  
   if (!filterlist)
     return;
+  
+  if (!tweaklist)
+    return;
 
+  if (!tweakopts)
+    return;
+  
   filterlist.style.display = 'none';
-
+	tweaklist.style.display  = 'none';
+  tweakopts.style.display  = 'none';
 
   // populate the sticker list
   var stickerlist = document.querySelector('#sticker_list');
@@ -4754,14 +4855,14 @@ function lightboxAddStickers(stickers, canvas_size, sticker_size) {
   for (let j = 0; j < stickers.length; j++) {
 
     let sticker_group = document.createElement("div");
-    sticker_group.setAttribute('style', 'margin-left: 10px; margin-right: 10px; margin-top: 10px')
+    sticker_group.setAttribute('style', 'margin-left: 10px; margin-right: 10px; margin-top: 10px');
 
 
     let sticker_preview = document.createElement("img");
     sticker_preview.setAttribute('class', 'sticker_preview');
     sticker_preview.setAttribute('width', sticker_size);
     sticker_preview.setAttribute('height', sticker_size);
-    sticker_preview.style.background = '#808080'
+    sticker_preview.style.background = '#808080';
 
 
     
@@ -4794,7 +4895,7 @@ function lightboxAddStickers(stickers, canvas_size, sticker_size) {
       // add the sticker to the canvas stack
       // TODO encapsulate the creation of new overlays
       let overlay_id = canvas.next_stack_id++;
-      canvas.canvasstack.push({'id':overlay_id, 'image':sticker_preview, 'x':canvas_center, 'y':canvas_center, 'width':stickers[j].width, 'height':stickers[j].height, 'srcwidth':stickers[j].width, 'srcheight':stickers[j].height})
+      canvas.canvasstack.push({'id':overlay_id, 'image':sticker_preview, 'x':canvas_center, 'y':canvas_center, 'width':stickers[j].width, 'height':stickers[j].height, 'srcwidth':stickers[j].width, 'srcheight':stickers[j].height});
 
 
     }, false);
@@ -4818,19 +4919,31 @@ function lightboxShowStickers() {
   
   // hide the filter list
   // hide the tweaks list
+  // hide the tweak options
   // show the sticker list
-  var filterlist = document.querySelector('#filter_list');
+  var filterlist  = document.querySelector('#filter_list');
   var stickerlist = document.querySelector('#sticker_list');
-
+	var tweaklist   = document.querySelector('#tweak_list');
+  var tweakopts   = document.querySelector('#tweak_options');
+  
   if (!filterlist)
     return;
 
   if (!stickerlist)
     return;
   
+  if (!tweaklist)
+    return;
   
-  filterlist.style.display = 'none';
+  if (!tweakopts)
+    return;
+  
+  filterlist.style.display  = 'none';
+  tweaklist.style.display   = 'none';
+  tweakopts.style.display   = 'none';
   stickerlist.style.display = 'flex';
+  
+  
 }
 
 
@@ -4928,11 +5041,474 @@ function lightboxScaleOverlay(overlay_id, factor, canvas, ctx) {
 
 
 
-function lightboxLoadTweaks() {
+function lightboxAddTweaks() {
+  
+  var tweak_size = 128;
+  
+  var tweaklist = document.querySelector('#tweak_list');
+
+  if (!tweaklist)
+    return;
+  
+  // callback used when slider changes
+  // 1st arg is the slider itself, 2nd is any args you assigned to the callback
+  function applytweak(slider, args) {
+      
+    var canvas = document.querySelector('#canvas');
+
+    if (!canvas)
+      return;
+
+    optype = args[0];
+
+    // add this tweak to the tweak stack
+    // if tweak already in stack, replace it, otherwise append
+    var addtweak = true;
+
+    for (let i = 0; i < canvas.tweakstack.length; i++) {
+      let currtweak = canvas.tweakstack[i];
+
+      if (currtweak.type == optype) {
+        print('replacing tweak');
+        addtweak = false;
+        currtweak.value = Number(slider.value);
+        break;
+      }
+    }
+
+    if (addtweak) {
+      print('adding a new tweak');
+      canvas.tweakstack.push({type:optype, value: Number(slider.value)});
+    }
+
+    processTweaksAndFilter(canvas);
+
+    tweaklist.settings[optype].current_value = slider.value;
+  };
+  
+  // this is called whenever the user decides to remove the tweak
+  function removetweak(args) {
+    
+    var canvas = document.querySelector('#canvas');
+
+    if (!canvas)
+      return;
+
+    optype = args[0];
+
+    var index = -1;
+
+    for (let i = 0; i < canvas.tweakstack.length; i++) {
+      let currtweak = canvas.tweakstack[i];
+
+      if (currtweak.type == optype) {
+        index = i;
+        break;
+      }
+    }
+    
+    if (index >= 0) {
+      // remove tweak from stack
+      canvas.tweakstack.splice(index, 1);
+      
+      // reset current value
+      var tweaklist = document.querySelector('#tweak_list');
+      tweaklist.settings[optype].current_value = tweaklist.settings[optype].default_value;
+      
+      // redraw
+      processTweaksAndFilter(canvas);
+      
+    }
+    
+  }
+  
+  
+  // dont forget to add the caman filter op in processTweaksAndFilter( ) and the entries to tweaks.settings 
+  
+  function loadBrightness() {
+    
+    // hide tweak list
+    tweaklist.style.display = 'none';
+    
+    // fetch current value
+    var currvalue = tweaklist.settings.brightness.current_value;
+    
+    lightboxShowTweakOptions('SLIDER', {min:-100, max:100, step:1, value:currvalue}, applytweak, ['brightness'], removetweak, ['brightness']);
+  }
+  
+  function loadContrast() {
+    
+    // hide tweak list
+    tweaklist.style.display = 'none';
+    
+    // fetch current value
+    var currvalue = tweaklist.settings.contrast.current_value;
+    
+    lightboxShowTweakOptions('SLIDER', {min:-20, max:20, step:1, value:currvalue}, applytweak, ['contrast'], removetweak, ['contrast']);
+  }
+  
+  
+  function loadExposure() {
+    
+    // hide tweak list
+    tweaklist.style.display = 'none';
+    
+    // fetch current value
+    var currvalue = tweaklist.settings.exposure.current_value;
+    
+    lightboxShowTweakOptions('SLIDER', {min:-100, max:100, step:1, value:currvalue}, applytweak, ['exposure'], removetweak, ['exposure']);
+  }
+  
+  function loadGamma() {
+    
+    // hide tweak list
+    tweaklist.style.display = 'none';
+    
+    // fetch current value
+    var currvalue = tweaklist.settings.gamma.current_value;
+    
+    lightboxShowTweakOptions('SLIDER', {min:1, max:4, step:0.1, value:currvalue}, applytweak, ['gamma'], removetweak, ['gamma']);
+  }
+  
+  function loadHue() {
+    
+    // hide tweak list
+    tweaklist.style.display = 'none';
+    
+    // fetch current value
+    var currvalue = tweaklist.settings.hue.current_value;
+    
+    lightboxShowTweakOptions('SLIDER', {min:0, max:100, step:1, value:currvalue}, applytweak, ['hue'], removetweak, ['hue']);
+  }
+  
+  function loadSaturation() {
+    
+    // hide tweak list
+    tweaklist.style.display = 'none';
+    
+    // fetch current value
+    var currvalue = tweaklist.settings.saturation.current_value;
+    
+    lightboxShowTweakOptions('SLIDER', {min:-100, max:100, step:1, value:currvalue}, applytweak, ['saturation'], removetweak, ['saturation']);
+  }
+  
+  function loadSepia() {
+    
+    // hide tweak list
+    tweaklist.style.display = 'none';
+    
+    // fetch current value
+    var currvalue = tweaklist.settings.sepia.current_value;
+    
+    lightboxShowTweakOptions('SLIDER', {min:0, max:100, step:1, value:currvalue}, applytweak, ['sepia'], removetweak, ['sepia']);
+  }
+  
+  function loadVibrance() {
+    
+    // hide tweak list
+    tweaklist.style.display = 'none';
+    
+    // fetch current value
+    var currvalue = tweaklist.settings.vibrance.current_value;
+    
+    lightboxShowTweakOptions('SLIDER', {min:-100, max:100, step:1, value:currvalue}, applytweak, ['vibrance'], removetweak, ['vibrance']);
+  }
+  
+  
+  
+  var tweaks = [
+  
+    {name:'focalpoint', displayname:'Focal Point', 	icon:'fa-crosshairs', enabled:false, setup:null},
+    
+    {name:'rotate', 		displayname:'Rotate', 			icon:'fa-undo', 			enabled:false, setup:null},
+    {name:'crop', 			displayname:'Crop', 				icon:'fa-crop', 			enabled:false, setup:null},
+    
+    {name:'brightness',	displayname:'Brightness', 	icon:'fa-bolt', 			enabled:true,  setup:loadBrightness},
+    {name:'channel',		displayname:'Channel',		 	icon:'fa-cog', 				enabled:false, setup:null},
+    {name:'colorize',		displayname:'Colorize',			icon:'fa-cog', 				enabled:false, setup:null},
+    {name:'contrast',		displayname:'Contrast',		 	icon:'fa-adjust',			enabled:true,  setup:loadContrast},
+    {name:'exposure',		displayname:'Exposure', 		icon:'fa-camera', 		enabled:true,  setup:loadExposure},
+    {name:'gamma',			displayname:'Gamma',				icon:'fa-signal', 		enabled:true,  setup:loadGamma},
+    {name:'hue',				displayname:'Hue',					icon:'fa-tint', 			enabled:true,  setup:loadHue},
+    {name:'saturation', displayname:'Saturation', 	icon:'fa-edit', 			enabled:true,  setup:loadSaturation},
+    {name:'sepia',			displayname:'Sepia',				icon:'fa-image', 			enabled:true,  setup:loadSepia},
+    {name:'vibrance',		displayname:'Vibrance',			icon:'fa-plus-circle', enabled:true, setup:loadVibrance},
+    
+    {name:'blur', 			displayname:'Blur', 				icon:'fa-beer', 			enabled:false, setup:null},
+    {name:'sharpen', 		displayname:'Sharpen', 			icon:'fa-binoculars',	enabled:false, setup:null},
+    
+    {name:'text', 			displayname:'Text', 				icon:'fa-font', 			enabled:false, setup:null}
+  		
+  
+  ];
+  
+  
+  // populate the tweak list
+  
+  for (let i = 0; i < tweaks.length; i++) {
+
+    let tweak = tweaks[i];
+    print('Adding ' + tweak.displayname);
+    
+    let tweak_group = document.createElement("div");
+    tweak_group.setAttribute('style', 'margin-left: 10px; margin-right: 10px; margin-top: 10px');
+
+    
+    let tweak_button = document.createElement("button");
+    tweak_button.setAttribute('class', 'icon-button');
+    tweak_button.setAttribute('style', 'font-size: 80px; border: 0; border-radius:24px; width:128px; line-height: 128px; color: #fff;');
+    tweak_button.setAttribute('width', tweak_size);
+    tweak_button.setAttribute('height', tweak_size);
+    
+    var tweak_color = '#808080';
+    if (tweak.enabled)
+      tweak_color = '#2b90d9';
+    
+    tweak_button.style.background = tweak_color;
+    
+    if (DEBUG && window.location.origin.startsWith('http:'))
+      tweak_button.textContent = '+';
+    
+    
+    let tweak_button_icon = document.createElement("i");
+    tweak_button_icon.setAttribute('class', 'fa fa-fw ' + tweak.icon);
+    tweak_button.appendChild(tweak_button_icon);
+    
+    
+    // each button needs a label indicating the tweak
+    let label = document.createElement("p");
+  	label.textContent = tweak.displayname;
+    label.setAttribute('style', 'color:#fff; font-size:12px; font-weight:500;');
+    
+    tweak_group.appendChild(tweak_button);
+    tweak_group.appendChild(label);
+    
+    
+    // add button group to our tweak list
+    print('adding tweak button');
+    tweaklist.appendChild(tweak_group);
+    
+    
+    // add any event handlers here
+    tweak_button.addEventListener('click', function (e) {
+      e.stopPropagation();
+      
+      if (tweak.setup)
+        tweak.setup();
+      
+    }, false);
+    
+    
+  }
   
   
 }
 
+
+function lightboxShowTweaks() {
+  
+  
+  // hide the filter list
+  // hide the sticker list
+  // hide the tweak options
+  // show the tweak list
+  var filterlist  = document.querySelector('#filter_list');
+  var stickerlist = document.querySelector('#sticker_list');
+	var tweaklist   = document.querySelector('#tweak_list');
+  var tweakopts   = document.querySelector('#tweak_options');
+  
+  if (!filterlist)
+    return;
+
+  if (!stickerlist)
+    return;
+  
+  if (!tweaklist)
+    return;
+  
+  if (!tweakopts)
+    return;
+  
+  print('showing tweaks');
+  filterlist.style.display  = 'none';
+  stickerlist.style.display = 'none';
+  tweakopts.style.display   = 'none';
+  tweaklist.style.display   = 'flex';
+  
+}
+
+
+function lightboxAddTweakOptions() {
+  
+  
+  var tweakopts = document.querySelector('#tweak_options');
+  
+  if (!tweakopts)
+    return;
+  
+  
+  
+  
+  // create a slider group
+  var slider_group = document.createElement("div");
+  slider_group.setAttribute('id', 'tweak_slider_group');
+  slider_group.setAttribute('style', 'display:flex; justify-content: center; width: 100%;');
+  slider_group.style.display = 'none'; // all tweak opt controls are hidden by default
+  
+  if (DEBUG)
+    slider_group.style.background = '#808080'
+  
+  slider_group.addEventListener('change', function (e) { e.stopPropagation(); }, false);
+  
+  var tweakslider = document.createElement("input");
+  tweakslider.setAttribute('id', 'tweak_slider');
+  tweakslider.setAttribute('type', 'range');
+  tweakslider.setAttribute('min', '0.0');
+  tweakslider.setAttribute('max', '1.0');
+  tweakslider.setAttribute('step', '0.1');
+  
+  if (DEBUG)
+    tweakslider.style.background = '#808080'
+  
+  tweakslider.setAttribute('style', 'appearance: none; height:50px; width: 300px;');
+  
+  // will be overriden
+  tweakslider.onchange = function (e) {
+    e.stopPropagation();
+    print(tweakslider.value);
+  };
+  
+  // remove
+  var remove_tweak = document.createElement("button");
+  remove_tweak.setAttribute('id', 'tweak_slider_remove');
+  remove_tweak.setAttribute('style', 'width: 32px; height: 32px; border-radius: 32px; border: 0; margin-top: 8px; margin-right: 10px; font-size: 18px; font-weight:500; color: #fff; background: #2b90d9;');
+  remove_tweak.textContent = 'x';
+  
+  // will be overidden
+  remove_tweak.onclick = function (e) {
+    e.stopPropagation();
+    slider_group.style.display = 'none';
+    lightboxShowTweaks();
+  };
+  
+  // close
+  var closebutton = document.createElement("button");
+  closebutton.setAttribute('id', 'tweak_slider_close');
+  closebutton.setAttribute('style', 'height: 32px; border-radius: 32px; border: 0; margin-top: 8px; font-size: 18px; font-weight:500; color: #fff; background: #2b90d9;');
+  closebutton.textContent = 'close';
+  
+  closebutton.onclick = function (e) {
+    e.stopPropagation();
+    // hide and unhide necessary controls
+    slider_group.style.display = 'none';
+    lightboxShowTweaks();
+  };
+  
+  
+  slider_group.appendChild(tweakslider);
+  slider_group.appendChild(remove_tweak);
+  slider_group.appendChild(closebutton);
+  
+  tweakopts.appendChild(slider_group);
+  
+}
+
+
+// settings (obj)
+// For sliders:
+//		min
+//		max
+//		step
+//		value
+//
+// onchange (function). recieves 2 args: the slider and the array you supplied
+//
+// onchange_args is an array that is passed as the 2nd arg of the callback
+//
+// onremove (function) gets called when user click the remove button (x)
+//
+function lightboxShowTweakOptions(opttype, settings, onchange, onchange_args, onremove, remove_args) {
+  
+  // hide the filter list
+  // hide the sticker list
+  // hide the tweak options
+  // show the tweak list
+  var filterlist  = document.querySelector('#filter_list');
+  var stickerlist = document.querySelector('#sticker_list');
+	var tweaklist   = document.querySelector('#tweak_list');
+  var tweakopts   = document.querySelector('#tweak_options');
+  
+  if (!filterlist)
+    return;
+
+  if (!stickerlist)
+    return;
+  
+  if (!tweaklist)
+    return;
+  
+  if (!tweakopts)
+    return;
+  
+  print('showing tweak opts');
+  filterlist.style.display  = 'none';
+  stickerlist.style.display = 'none';
+  tweaklist.style.display   = 'none';
+  tweakopts.style.display   = 'flex';
+  
+  
+  // there are many tweak opts. which one?
+  if (opttype == 'SLIDER') {
+    print('this tweak requested a slider');
+    
+    var slider_group = document.querySelector('#tweak_slider_group');
+    
+    if (!slider_group)
+      return;
+    
+    slider_group.style.display = 'flex';
+    
+    // init/restore slider
+    var slider = document.querySelector('#tweak_slider');
+    
+    if (!slider)
+      return;
+    
+    
+    slider.min   = settings.min;
+    slider.max   = settings.max;
+    slider.step  = settings.step;
+    slider.value = settings.value;
+    
+        
+    slider.onchange = function (e) {
+      e.stopPropagation();
+      
+      if (onchange)
+      	onchange(slider, onchange_args);
+    };
+    
+    var remove = document.querySelector('#tweak_slider_remove');
+    
+    // call this when the remove button is clicked
+    if (remove) {
+      remove.onclick = function (e) {
+        
+        e.stopPropagation();
+        
+        if (onremove)
+          onremove(remove_args);
+        
+        slider_group.style.display = 'none';
+    		lightboxShowTweaks();
+      };
+      
+    }
+    
+  }
+  
+  
+}
 
 // atm glam toots your pic from inside the lightbox
 // in the future the lightbox will hopefully be able to add image in compose box
@@ -4999,7 +5575,7 @@ function resetUI() {
   // clear cw
   
   // reset visibility
-  var visbut = document.querySelector('div .privacy-dropdown__value button')
+  var visbut = document.querySelector('div .privacy-dropdown__value button');
   
   if (visbut)
     
@@ -5184,7 +5760,7 @@ function insertChooseAFile() {
           if (lightbox == null) {
             print('requesting a new one');
             var body = document.getElementsByTagName("body");
-            var lightbox = createLightbox(body[0]);
+            lightbox = createLightbox(body[0]);
           }
           else {
             // atm not re-using lightox. a new one must be created
@@ -5430,8 +6006,8 @@ function bytesToPngHeader(bytes) {
   ////////////////
   
   // first 8 bytes must be: 137 80 78 71 13 10 26 10
-  if (uintbytes[0] == 137 && uintbytes[1] == 80 && uintbytes[2] == 78 && uintbytes[3] == 71 
-      && uintbytes[4] == 13 && uintbytes[5] == 10 && uintbytes[6] == 26 && uintbytes[7] == 10) {
+  if (uintbytes[0] == 137 && uintbytes[1] == 80 && uintbytes[2] == 78 && uintbytes[3] == 71 &&
+      uintbytes[4] == 13 && uintbytes[5] == 10 && uintbytes[6] == 26 && uintbytes[7] == 10) {
     
     // we're good
   }
@@ -5527,7 +6103,7 @@ function get_access_token() {
     var jsondata = JSON.parse(script.textContent);
     
     if (jsondata && jsondata.hasOwnProperty('meta') && jsondata.meta.hasOwnProperty('access_token') )
-    	return jsondata.meta.access_token
+    	return jsondata.meta.access_token;
     else
       return null;
   }
@@ -5546,7 +6122,7 @@ function urlencode(obj) {
   
   var queries = [];
   
-  for (key in obj) {
+  for (let key in obj) {
     
     if (!obj.hasOwnProperty(key))
       continue;
@@ -5665,9 +6241,9 @@ function uploadmedia(url, access_token, fileobj, onload, onerror, onabort) {
         //				 },
         // "description":null}
 
-        var jsondata = JSON.parse(query.responseText);
+        let jsondata = JSON.parse(query.responseText);
 
-        var media_id = jsondata.id;
+        let media_id = jsondata.id;
         
         onload(url, access_token, media_id);
       }
@@ -5678,7 +6254,7 @@ function uploadmedia(url, access_token, fileobj, onload, onerror, onabort) {
         
         // {"status":NUMBER,"error":"STRING"}
         
-        var jsondata = JSON.parse(query.responseText);
+        let jsondata = JSON.parse(query.responseText);
         
         onerror(jsondata.status, jsondata.error);
       }
@@ -5786,7 +6362,7 @@ function postmedia(url, access_token, media_id, message, visibility, spoiler_tex
   var data = urlencode(params);
   
   // arrays require a particular format: array[]=value1&array[]=value2...
-  data += '&media_ids%5B%5D=' + media_id
+  data += '&media_ids%5B%5D=' + media_id;
   
   query.send(data);
   
@@ -5798,6 +6374,36 @@ function postmedia(url, access_token, media_id, message, visibility, spoiler_tex
 
 
 window.addEventListener("load", function(event) {
+  
+  var slider_style = document.createElement("style");
+  slider_style.textContent = `
+#tweak_slider::-moz-range-track {
+	height: 10px;
+	border-radius: 5px;
+}
+
+#tweak_slider::-webkit-slider-runnable-track {
+	height: 10px;
+	border-radius: 5px;
+}
+
+#tweak_slider::-moz-range-thumb {
+  width: 25px;
+  height: 25px;
+  border-radius: 25px;
+  cursor: pointer;
+}
+
+#tweak_slider::-webkit-slider-thumb {
+	width: 25px;
+  height: 25px;
+  border-radius: 25px;
+  cursor: pointer;
+}`;
+  
+  var head = document.querySelector('head');
+  head.appendChild(slider_style);
+  
   insertChooseAFile();
 });
 
