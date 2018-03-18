@@ -2,7 +2,7 @@
 // @name     glam
 // @namespace   spaceotter
 // @author   spaceotter@mastodon.art
-// @version  0.5
+// @version  0.6
 // @grant    none
 // @include  http://amer*
 // @include https://mastodon.social/*
@@ -3710,6 +3710,8 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
       return rgba;
     });
   });
+  
+  
 
 }).call(this);
 
@@ -3811,10 +3813,18 @@ function createLightbox(parent) {
   
   lbcanvas.mousebegan = false;
   lbcanvas.follower   = null;
-  lbcanvas.bgpixel    = null; // a copy of the unfiltered image w/ no overlays
+  lbcanvas.bgpixels   = null; // a copy of the unfiltered image w/ no overlays
   lbcanvas.procpixels = null; // a copy of the filtered image w/ no overlays
   lbcanvas.currfilter = null; // the last filter function called. because there can only be one, also the repr current filter
   lbcanvas.tweakstack = [];		// determines the order that tweaks are applied. atm only one tweak per type
+  
+  lbcanvas.file = null;
+  lbcanvas.imagedata = null;
+  lbcanvas.current_rotation = 0; // degrees
+  lbcanvas.xflipped = false;
+  lbcanvas.yflipped = false;
+  
+  lbcanvas.focalpoint = {'visible':false, 'x':lbcanvas.width / 2, 'y':lbcanvas.height / 2, 'width':80, 'height':80, 'held':false};
   
   // convenience var
   var _ctx = lbcanvas.getContext('2d');
@@ -3960,6 +3970,16 @@ function createLightbox(parent) {
     
     print('(' + e.offsetX + ', ' + e.offsetY + ')');
     
+    // if the focal point is enabled, that takes precedence
+    if (lbcanvas.focalpoint.visible) {
+      let xtopleft = lbcanvas.focalpoint.x - lbcanvas.focalpoint.width / 2;
+      let ytopleft = lbcanvas.focalpoint.y - lbcanvas.focalpoint.height / 2;
+      
+      if (e.offsetX > xtopleft && e.offsetX < xtopleft + lbcanvas.focalpoint.width && e.offsetY > ytopleft && e.offsetY < ytopleft + lbcanvas.focalpoint.height) {
+        lbcanvas.focalpoint.held = true;
+      }
+    }
+    
     // find the first matching item in LIFO order
     for (let i = lbcanvas.canvasstack.length - 1; i >= 0 ; i--) {
       let ovlayitem = lbcanvas.canvasstack[i];
@@ -3993,8 +4013,20 @@ function createLightbox(parent) {
     
     if (lbcanvas.mousebegan) {
       
-      if (lbcanvas.follower) {
-        // dragging
+      // dragging
+      
+      if (lbcanvas.focalpoint.held) {
+        
+        // clear the canvas
+        _ctx.putImageData(lbcanvas.procpixels, 0, 0);
+        
+        lbcanvas.focalpoint.x = e.offsetX;
+        lbcanvas.focalpoint.y = e.offsetY;
+        
+        lightboxDrawOverlays();
+        
+      }
+      else if (lbcanvas.follower) {
         
         // clear the canvas
         _ctx.putImageData(lbcanvas.procpixels, 0, 0);
@@ -4073,6 +4105,7 @@ function createLightbox(parent) {
     e.stopPropagation();
     
     lbcanvas.mousebegan = false;
+    lbcanvas.focalpoint.held = false;
     lbcanvas.follower = null;
     
   }, false);
@@ -4082,6 +4115,7 @@ function createLightbox(parent) {
     e.stopPropagation();
     
     lbcanvas.mousebegan = false;
+    lbcanvas.focalpoint.held = false;
     lbcanvas.follower = null;
     
     // reset controls, if any
@@ -4182,7 +4216,8 @@ function createLightbox(parent) {
     // Note - must grab from the caman canvas not our lbcanvas
     
     function blobloaded(blobdata) {
-      uploadmedia(url, access_token, blobdata, onload, onerror, onabort);
+      let focalpoint = lightboxGetFocalPoint();
+      uploadmedia(url, access_token, blobdata, focalpoint, onload, onerror, onabort);
     	print('uploading ' + lbcanvas.file.name + ' ...');
     }
     
@@ -4420,11 +4455,12 @@ function createLightbox(parent) {
 
       e.stopPropagation();
       
+      lightboxGetFocalPoint();
       
-      var dataurl = lbcanvas.toDataURL('image/png');
-      testlink.href = dataurl;
+      //var dataurl = lbcanvas.toDataURL('image/png');
+      //testlink.href = dataurl;
 
-      testlink.click();
+      //testlink.click();
       
 
     }, false);
@@ -4529,6 +4565,8 @@ function createLightbox(parent) {
 
 
 
+
+
 // populates the lightbox
 function loadLightbox(file, image) {
   
@@ -4587,6 +4625,7 @@ function loadLightbox(file, image) {
     canvas.bgpixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
     canvas.procpixels = canvas.bgpixels;
     
+    canvas.imagedata = {'image':image, 'width':image.width, 'height':image.height, 'xoffset':xoffset, 'yoffset':yoffset, 'dest_width':width, 'dest_height':height};
     
     // add filters
     // only add those considered 'enabled'
@@ -4655,7 +4694,9 @@ function processTweaksAndFilter(canvas) {
       else if (currtweak.type == 'vibrance') {
         this.vibrance(currtweak.value);
       }
-      
+      else if (currtweak.type == 'hflip') {
+        
+      }
 
     }
 
@@ -4783,6 +4824,34 @@ function lightboxAddFilters(image, filters, thumbnail_size) {
 
 }
 
+// returns null or a string with two float values: e.g. '0.75,0.5'
+function lightboxGetFocalPoint() {
+  
+  var focalstr = '';
+  
+  var canvas = document.querySelector('#canvas');
+
+  if (!canvas)
+    return null;
+  
+  // normalize focalpoint
+  var xorigin = canvas.width / 2;
+  var yorigin = canvas.height / 2;
+  
+  var x = canvas.focalpoint.x - xorigin;
+  var y = canvas.focalpoint.y - yorigin;
+  
+  x = x / (canvas.width / 2);
+  y = y / (canvas.height / 2);
+  y = y * -1.0;
+  
+  print('focal ' + x + ', ' + y);
+  
+  focalstr += x + ',' + y;
+  
+  return focalstr;
+  
+}
 
 function lightboxShowFilters() {
   
@@ -4959,9 +5028,25 @@ function lightboxDrawOverlays() {
   
   print('revealing overlay');
   
+  
+  
   for (let i = 0; i < canvas.canvasstack.length; i++) {
     let ovlayitem = canvas.canvasstack[i];
     ctx.drawImage(ovlayitem.image, ovlayitem.x - ovlayitem.width / 2, ovlayitem.y  - ovlayitem.height / 2, ovlayitem.width, ovlayitem.height)
+  }
+  
+  // draw the focal point, if any, last
+  if (canvas.focalpoint.visible) {
+    print('drawing focal point');
+    
+    ctx.save();
+    ctx.fillStyle = 'rgba(255, 165, 0, 0.5)';
+    ctx.beginPath();
+    var radius = canvas.focalpoint.width / 2;
+    ctx.arc(canvas.focalpoint.x, canvas.focalpoint.y, radius, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
   }
   
   
@@ -5049,6 +5134,25 @@ function lightboxAddTweaks() {
 
   if (!tweaklist)
     return;
+  
+  
+  function loadFocalPoint() {
+    
+    // hide tweak list
+    tweaklist.style.display = 'none';
+    
+    lightboxShowTweakOptions('FOCAL');
+  }
+  
+  
+  function loadRotate() {
+    
+    // hide tweak list
+    tweaklist.style.display = 'none';
+    
+    lightboxShowTweakOptions('ROTATE');
+  }
+  
   
   // callback used when slider changes
   // 1st arg is the slider itself, 2nd is any args you assigned to the callback
@@ -5218,9 +5322,9 @@ function lightboxAddTweaks() {
   
   var tweaks = [
   
-    {name:'focalpoint', displayname:'Focal Point', 	icon:'fa-crosshairs', enabled:false, setup:null},
+    {name:'focalpoint', displayname:'Focal Point', 	icon:'fa-crosshairs', enabled:true,	 setup:loadFocalPoint},
     
-    {name:'rotate', 		displayname:'Rotate', 			icon:'fa-undo', 			enabled:false, setup:null},
+    {name:'rotate', 		displayname:'Rotate', 			icon:'fa-undo', 			enabled:true,	 setup:loadRotate},
     {name:'crop', 			displayname:'Crop', 				icon:'fa-crop', 			enabled:false, setup:null},
     
     {name:'brightness',	displayname:'Brightness', 	icon:'fa-bolt', 			enabled:true,  setup:loadBrightness},
@@ -5348,6 +5452,9 @@ function lightboxAddTweakOptions() {
   
   
   
+  //////////////////////////
+  //		SCALAR SLIDER			//
+  //////////////////////////
   
   // create a slider group
   var slider_group = document.createElement("div");
@@ -5411,6 +5518,287 @@ function lightboxAddTweakOptions() {
   
   tweakopts.appendChild(slider_group);
   
+  //////////////////////////
+  //		COLOR SLIDER			//
+  //////////////////////////
+  
+  //////////////////////////
+  //		ROTATE GROUP			//
+  //////////////////////////
+  
+  var rotbtnsize = 128;
+  
+  let rotate_group = document.createElement("div");
+  rotate_group.setAttribute('id', 'rotate_group');
+  rotate_group.setAttribute('style', 'display:flex; flex-direction: row; justify-content: center; width: 100%;');
+	rotate_group.style.display = 'none';
+
+  // add button group to our tweak opts
+  tweakopts.appendChild(rotate_group);
+  
+  ///// CW Rotate Button
+  
+  let cw_group = document.createElement("div");
+  //cw_group.setAttribute('style', 'display:flex; flex-direction: column;');
+  
+  let cwrotate_button = document.createElement("button");
+  cwrotate_button.setAttribute('class', 'icon-button');
+  cwrotate_button.setAttribute('style', 'font-size: 80px; border: 0; border-radius:24px; width:128px; line-height: 128px; color: #fff; margin-right: 10px;');
+  //cwrotate_button.setAttribute('width', rotbtnsize);
+  //cwrotate_button.setAttribute('height', rotbtnsize);
+  cwrotate_button.style.background = '#2b90d9';
+
+  if (DEBUG && window.location.origin.startsWith('http:'))
+    cwrotate_button.textContent = 'C';
+
+
+  let cwrotate_button_icon = document.createElement("i");
+  cwrotate_button_icon.setAttribute('class', 'fa fa-fw fa-undo');
+  cwrotate_button_icon.setAttribute('style', 'transform: scale(-1, 1);');
+  cwrotate_button.appendChild(cwrotate_button_icon);
+
+
+  // each button needs a label indicating the rotate/flip
+  let cwlabel = document.createElement("p");
+  cwlabel.textContent = 'Rotate CW';
+  cwlabel.setAttribute('style', 'color:#fff; font-size:12px; font-weight:500;');
+
+  cw_group.appendChild(cwrotate_button);
+  cw_group.appendChild(cwlabel);
+  
+  rotate_group.appendChild(cw_group);
+
+  
+  ///// CCW Rotate Button
+  
+  let ccw_group = document.createElement("div");
+  //ccw_group.setAttribute('style', 'display:flex; flex-direction: column;');
+  
+  let ccwrotate_button = document.createElement("button");
+  ccwrotate_button.setAttribute('class', 'icon-button');
+  ccwrotate_button.setAttribute('style', 'font-size: 80px; border: 0; border-radius:24px; width:128px; line-height: 128px; color: #fff; margin-right: 10px;');
+  ccwrotate_button.setAttribute('width', rotbtnsize);
+  ccwrotate_button.setAttribute('height', rotbtnsize);
+  ccwrotate_button.style.background = '#2b90d9';
+
+  if (DEBUG && window.location.origin.startsWith('http:'))
+    ccwrotate_button.textContent = 'U';
+
+
+  let ccwrotate_button_icon = document.createElement("i");
+  ccwrotate_button_icon.setAttribute('class', 'fa fa-fw fa-undo');
+  ccwrotate_button.appendChild(ccwrotate_button_icon);
+
+
+  // each button needs a label indicating the rotate/flip
+  let ccwlabel = document.createElement("p");
+  ccwlabel.textContent = 'Rotate CCW';
+  ccwlabel.setAttribute('style', 'color:#fff; font-size:12px; font-weight:500;');
+
+  ccw_group.appendChild(ccwrotate_button);
+  ccw_group.appendChild(ccwlabel);
+  
+  rotate_group.appendChild(ccw_group);
+  
+  ///// Flip Vertical Button
+  
+  let vflip_group = document.createElement("div");
+  
+  let vflip_button = document.createElement("button");
+  vflip_button.setAttribute('class', 'icon-button');
+  vflip_button.setAttribute('style', 'font-size: 80px; border: 0; border-radius:24px; width:128px; line-height: 128px; color: #fff; margin-right: 10px;');
+  vflip_button.setAttribute('width', rotbtnsize);
+  vflip_button.setAttribute('height', rotbtnsize);
+  vflip_button.style.background = '#2b90d9';
+
+  if (DEBUG && window.location.origin.startsWith('http:'))
+    vflip_button.textContent = 'V';
+
+
+  let vflip_button_icon = document.createElement("i");
+  vflip_button_icon.setAttribute('class', 'fa fa-fw fa-image');
+  vflip_button_icon.setAttribute('style', 'transform: scale(1, -1);');
+  vflip_button.appendChild(vflip_button_icon);
+
+
+  // each button needs a label indicating the rotate/flip
+  let vfliplabel = document.createElement("p");
+  vfliplabel.textContent = 'Flip Vertical';
+  vfliplabel.setAttribute('style', 'color:#fff; font-size:12px; font-weight:500;');
+
+  vflip_group.appendChild(vflip_button);
+  vflip_group.appendChild(vfliplabel);
+  
+  rotate_group.appendChild(vflip_group);
+  
+  
+  ///// Flip Horizontal Button
+  
+  let hflip_group = document.createElement("div");
+  
+  let hflip_button = document.createElement("button");
+  hflip_button.setAttribute('class', 'icon-button');
+  hflip_button.setAttribute('style', 'font-size: 80px; border: 0; border-radius:24px; width:128px; line-height: 128px; color: #fff; margin-right: 10px;');
+  hflip_button.setAttribute('width', rotbtnsize);
+  hflip_button.setAttribute('height', rotbtnsize);
+  hflip_button.style.background = '#2b90d9';
+
+  if (DEBUG && window.location.origin.startsWith('http:'))
+    hflip_button.textContent = 'H';
+
+
+  let hflip_button_icon = document.createElement("i");
+  hflip_button_icon.setAttribute('class', 'fa fa-fw fa-image');
+  hflip_button.appendChild(hflip_button_icon);
+
+
+  // each button needs a label indicating the rotate/flip
+  let hfliplabel = document.createElement("p");
+  hfliplabel.textContent = 'Flip Horizontal';
+  hfliplabel.setAttribute('style', 'color:#fff; font-size:12px; font-weight:500;');
+
+  hflip_group.appendChild(hflip_button);
+  hflip_group.appendChild(hfliplabel);
+  
+  rotate_group.appendChild(hflip_group);
+  
+  
+
+
+  // add any event handlers here
+  cwrotate_button.addEventListener('click', function (e) {
+    e.stopPropagation();
+
+    var canvas = document.querySelector('#canvas');
+    
+    if (canvas)
+    	rotateCanvas(canvas, 'CW');
+
+  }, false);
+    
+  ccwrotate_button.addEventListener('click', function (e) {
+    e.stopPropagation();
+
+    var canvas = document.querySelector('#canvas');
+    
+    if (canvas)
+    	rotateCanvas(canvas, 'CCW');
+
+  }, false);
+  
+  vflip_button.addEventListener('click', function (e) {
+    e.stopPropagation();
+
+    var canvas = document.querySelector('#canvas');
+    
+    if (canvas)
+    	flipCanvas(canvas, 'VERTICAL');
+
+  }, false);
+  
+  hflip_button.addEventListener('click', function (e) {
+    e.stopPropagation();
+
+    var canvas = document.querySelector('#canvas');
+    
+    if (canvas)
+    	flipCanvas(canvas, 'HORIZONTAL');
+
+  }, false);
+  
+  
+  //////////////////////////
+  //		FOCAL GROUP 			//
+  //////////////////////////
+  
+  var focalbtnsize = 128;
+  
+  let focal_group = document.createElement("div");
+  focal_group.setAttribute('id', 'focal_group');
+  focal_group.setAttribute('style', 'display:flex; flex-direction: row; justify-content: center; width: 100%;');
+	focal_group.style.display = 'none';
+
+  // add button group to our tweak opts
+  tweakopts.appendChild(focal_group);
+  
+  ///// Show Button
+  
+  let show_focal = document.createElement("button");
+  show_focal.setAttribute('class', 'icon-button');
+  show_focal.setAttribute('style', 'font-size: 80px; border: 0; border-radius:24px; width:128px; line-height: 128px; color: #fff; margin-right: 10px;');
+  show_focal.setAttribute('width', focalbtnsize);
+  show_focal.setAttribute('height', focalbtnsize);
+  show_focal.style.background = '#2b90d9';
+
+  if (DEBUG && window.location.origin.startsWith('http:'))
+    show_focal.textContent = 'S';
+
+
+  let show_focal_icon = document.createElement("i");
+  show_focal_icon.setAttribute('class', 'fa fa-fw fa-eye');
+  show_focal.appendChild(show_focal_icon);
+
+
+  focal_group.appendChild(show_focal);
+  
+
+  ///// Hide Button
+  
+  
+  let hide_focal = document.createElement("button");
+  hide_focal.setAttribute('class', 'icon-button');
+  hide_focal.setAttribute('style', 'font-size: 80px; border: 0; border-radius:24px; width:128px; line-height: 128px; color: #fff; margin-right: 10px;');
+  hide_focal.setAttribute('width', focalbtnsize);
+  hide_focal.setAttribute('height', focalbtnsize);
+  hide_focal.style.background = '#2b90d9';
+
+  if (DEBUG && window.location.origin.startsWith('http:'))
+    hide_focal.textContent = 'H';
+
+
+  let hide_focal_icon = document.createElement("i");
+  hide_focal_icon.setAttribute('class', 'fa fa-fw fa-eye-slash');
+  hide_focal.appendChild(hide_focal_icon);
+
+
+  focal_group.appendChild(hide_focal);
+
+  
+  show_focal.addEventListener('click', function (e) {
+    e.stopPropagation();
+    
+    print('show focal point');
+
+    var canvas = document.querySelector('#canvas');
+    
+    if (canvas) {
+    	canvas.focalpoint.visible = true;
+      
+      var ctx = canvas.getContext('2d');
+      ctx.putImageData(canvas.procpixels, 0, 0);
+      lightboxDrawOverlays();
+    }
+
+  }, false);
+  
+  hide_focal.addEventListener('click', function (e) {
+    e.stopPropagation();
+
+    print('hide focal point');
+    
+    var canvas = document.querySelector('#canvas');
+    
+    if (canvas) {
+    	canvas.focalpoint.visible = false;
+      
+      var ctx = canvas.getContext('2d');
+      ctx.putImageData(canvas.procpixels, 0, 0);
+      lightboxDrawOverlays();
+    }
+
+  }, false);
+  
+  
 }
 
 
@@ -5456,15 +5844,31 @@ function lightboxShowTweakOptions(opttype, settings, onchange, onchange_args, on
   tweaklist.style.display   = 'none';
   tweakopts.style.display   = 'flex';
   
+  // hide all tools by default
+  var slider_group = document.querySelector('#tweak_slider_group');
+  
+  if (!slider_group)
+      return;
+  
+  var rotate_group = document.querySelector('#rotate_group');
+    
+    if (!rotate_group)
+      return;
+  
+  var focal_group = document.querySelector('#focal_group');
+    
+    if (!focal_group)
+      return;
+  
+  // start everything w/ a clean slate
+  slider_group.style.display = 'none';
+  rotate_group.style.display = 'none';
+  focal_group.style.display = 'none';
+  
   
   // there are many tweak opts. which one?
   if (opttype == 'SLIDER') {
     print('this tweak requested a slider');
-    
-    var slider_group = document.querySelector('#tweak_slider_group');
-    
-    if (!slider_group)
-      return;
     
     slider_group.style.display = 'flex';
     
@@ -5506,9 +5910,111 @@ function lightboxShowTweakOptions(opttype, settings, onchange, onchange_args, on
     }
     
   }
+  else if (opttype == 'ROTATE') {
+    print('this tweak requested rotate opts');
+    
+    rotate_group.style.display = 'flex';
+  }
+  else if (opttype == 'FOCAL') {
+    print('this tweak requested focal point opts');
+    
+    focal_group.style.display = 'flex';
+  }
+  
+  
   
   
 }
+
+
+// mode: 'CW', 'CCW'
+function rotateCanvas(canvas, mode) {
+  
+  print('rotating');
+  
+  var rotation = 90;
+  
+  if (mode == 'CCW')
+    rotation = -90;
+  
+  canvas.current_rotation = (canvas.current_rotation + rotation) % 360;
+  
+  var ctx = canvas.getContext('2d');
+  
+  ctx.save();
+  
+  ctx.translate(canvas.width/2, canvas.height/2);
+  ctx.rotate((Math.PI / 180) * canvas.current_rotation);
+  
+  ctx.drawImage(canvas.imagedata.image, 0, 0, canvas.imagedata.image.width, canvas.imagedata.image.height, -canvas.width/2 + canvas.imagedata.xoffset, -canvas.height/2 + canvas.imagedata.yoffset, canvas.imagedata.dest_width, canvas.imagedata.dest_height);
+  
+  ctx.restore();
+  
+  
+  canvas.bgpixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  processTweaksAndFilter(canvas);
+  
+  print('done');
+  
+}
+
+// TODO flips must compound. either bake output: image -> dataurl -> new image
+// or add op to tweak stack
+
+// mode: VERTICAL, HORIZONTAL
+function flipCanvas(canvas, mode) {
+  
+  print('flip');
+  
+  
+  var ctx = canvas.getContext('2d');
+  
+  ctx.save();
+  
+  
+  if (mode == 'VERTICAL') {
+    if (!canvas.yflipped) {
+      ctx.translate(0,canvas.height);
+      ctx.scale(1,-1);
+      canvas.yflipped = true;
+    }
+    else {
+      canvas.yflipped = false;
+    }
+  }
+  else if (mode == 'HORIZONTAL') {
+    
+    if (!canvas.xflipped) {
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1,1);
+      canvas.xflipped = true;
+    }
+    else {
+      canvas.xflipped = false;
+    }
+    
+  }
+  else {
+    // bad mode
+    return;
+  }
+  
+  
+  //ctx.drawImage(canvas.imagedata.image, 0, 0, canvas.imagedata.image.width, canvas.imagedata.image.height, -canvas.width/2 + canvas.imagedata.xoffset, -canvas.height/2 + canvas.imagedata.yoffset, canvas.imagedata.dest_width, canvas.imagedata.dest_height);
+  ctx.drawImage(canvas.imagedata.image, 0, 0, canvas.imagedata.image.width, canvas.imagedata.image.height, 0 + canvas.imagedata.xoffset, 0 + canvas.imagedata.yoffset, canvas.imagedata.dest_width, canvas.imagedata.dest_height);
+
+  ctx.restore();
+
+  
+  canvas.bgpixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  processTweaksAndFilter(canvas);
+  
+  
+  
+  print('done');
+  
+}
+
 
 // atm glam toots your pic from inside the lightbox
 // in the future the lightbox will hopefully be able to add image in compose box
@@ -5805,7 +6311,7 @@ function insertChooseAFile() {
     
     
     var icon = document.createElement("i");
-    icon.setAttribute('class', 'fa fa-fw fa-camera');
+    icon.setAttribute('class', 'fa fa-fw fa-image');
     icon.setAttribute('aria-hidden', 'true');
     iconbutton.appendChild(icon);
     
@@ -6192,8 +6698,9 @@ function post(url, access_token, message, visibility, spoiler_text) {
 }
 
 
-function uploadmedia(url, access_token, fileobj, onload, onerror, onabort) {
+function uploadmedia(url, access_token, fileobj, focalpoint, onload, onerror, onabort) {
   
+  // focalpoint - (optional) a string with normalized float values separated by comma ('0.5,0.5')
   // onload  - function/callback when media successfully uploaded.
   //					 should accept 3 (string) args: url, access_token, media_id
   // onerror - function/callback when error or status code other than 200 occurs.
@@ -6274,6 +6781,8 @@ function uploadmedia(url, access_token, fileobj, onload, onerror, onabort) {
   
   data.append('file', fileobj);
   
+  if (focalpoint)
+    data.append('focus', focalpoint);
   
   query.send(data);
   
