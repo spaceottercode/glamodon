@@ -3747,7 +3747,7 @@ function createLightbox(parent) {
   
   var lightbox  = document.createElement("div");
   lightbox.setAttribute('id', 'lightbox');
-  lightbox.setAttribute('style', 'position:fixed; top:0; left:0; width:100%; height:100%; text-align:center; background:rgba(0,0,0,.7);');
+  lightbox.setAttribute('style', 'position:fixed; top:0; left:0; width:100%; height:100%; text-align:center; background:rgba(0,0,0,.7); overflow-y: auto');
   lightbox.style.display = 'none';
   
   lightbox.addEventListener('click', function () {
@@ -4455,12 +4455,10 @@ function createLightbox(parent) {
 
       e.stopPropagation();
       
-      lightboxGetFocalPoint();
-      
-      //var dataurl = lbcanvas.toDataURL('image/png');
-      //testlink.href = dataurl;
+      var dataurl = lbcanvas.toDataURL('image/png');
+      testlink.href = dataurl;
 
-      //testlink.click();
+      testlink.click();
       
 
     }, false);
@@ -5926,6 +5924,7 @@ function lightboxShowTweakOptions(opttype, settings, onchange, onchange_args, on
   
 }
 
+// TODO use the caman rotate filer
 
 // mode: 'CW', 'CCW'
 function rotateCanvas(canvas, mode) {
