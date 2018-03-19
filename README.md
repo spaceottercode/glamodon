@@ -1,20 +1,9 @@
 # Glam
-User-Script that adds image filters, stickers, and image tweaking tools on Mastodon sites
+User-Script that adds a new button to your compose box on Mastodon websites<sup>1</sup>. With this new button you can apply filters & stickers to your images and tweak them.
 
-Runs on Firefox running GreaseMonkey and Chrome (running natively as an extension).
+This scripts runs on Firefox with GreaseMonkey or Chrome (natively as an extension).
 
-# Install
-
-To run User-Scripts on Firefox based browsers you will need [Greasemonkey extension](https://addons.mozilla.org/en-US/firefox/addon/greasemonkey/) installed and running. 
-
-Next **[Click here](https://raw.githubusercontent.com/spaceottercode/glamodon/master/glamodon.user.js)** to automatically install the script.
-
-If GreaseMonkey does not detect the User-Script, create a New User Script in GreaseMonkey, and replace the script's text with the contents of [glamodon.users.js](https://raw.githubusercontent.com/spaceottercode/glamodon/master/glamodon.user.js).
-
-On Chrome, no plugin is needed to run a User-Script like this one. Drag the script unto your browser's extension window to install. 
-
-
-> This User Script by default, runs on the following sites:
+> 1. This User Script by default, runs on the following sites:
 >
 >   * mastodon.social
 >   * mastodon.art
@@ -22,6 +11,37 @@ On Chrome, no plugin is needed to run a User-Script like this one. Drag the scri
 > 
 >   Add your Mastodon site by adding a new @install line at the top of the script or replacing an existing one
 
+
+# Install
+
+### Firefox
+
+To run User-Scripts on Firefox based browsers you will need [Greasemonkey extension](https://addons.mozilla.org/en-US/firefox/addon/greasemonkey/) plugin. 
+
+Next **[Click here](https://raw.githubusercontent.com/spaceottercode/glamodon/master/glamodon.user.js)** to automatically install the script.
+
+If GreaseMonkey does not detect the User-Script, create a New User Script in GreaseMonkey, and replace it with the contents of [glamodon.users.js](https://raw.githubusercontent.com/spaceottercode/glamodon/master/glamodon.user.js).
+
+### Chrome
+
+On Chrome, no plugin is needed to run a User-Script like this one. Drag the script unto your browser's extension window to install. See Chromes documentation for instructions on accessing the extension window.
+
+# Features
+
+* filters
+* layer png images ontop of your images<sup>2</sup>
+* adjust brightness, contrast, gamma, exposure, and saturation
+* rotate and flip your images<sup>3</sup>
+
+Upcoming
+
+* crop
+* text
+* blur
+
+> 2. Your pngs must be packed into a tar file. tar file must not be compressed. An example is included above: `stickers.tar`. To create a tar file on POSIX operating systems run: `tar cvf fileout.tar image01.png image02.png` ...
+
+> 3. At the moment flips cannot be combined with other flips or rotates.
 
 # TODO/WIP
 
@@ -31,32 +51,20 @@ On Chrome, no plugin is needed to run a User-Script like this one. Drag the scri
 - [ ] the ability to reorder filters
 - [ ] document how to make custom filters
 - [ ] a filter to add borders/frames
-
-### stickers
-
-- [x] adding stickers is a high priority. ideally should be extensible and distributable. 
-  Simplest way atm is to allow any png (of limited size) to be imported as a sticker
-- [x] ability to scale stickers
-- [ ] ability to rotate stickers (might be dificult+expensive with a 2D canvas)
-- [ ] Of lesser priority but nice to have: animated stickers
+- [ ] vignette
 
 ### tools
 
 i.e. utilities. This is where you'll find things like the focal point tool and other tools like rotate (90º)
 
-- [x] focal point
-- [x] rotate CW, CCW, flip
-- [x] brightness & contrast
-- [x] saturation
-- [x] exposure, gamma
-- [ ] color tweaks
+- [ ] channels
+- [ ] colorize
 - [ ] blurs
 - [ ] text
 
 ### misc
 
 - [ ] render to sizes > 640x640
-- [x] add vertical scroll
 - [ ] as the script reaches maturation, change toot button to a done/ button, processed image is integrated back
 into compose text box as usual retaining traditional workflow
 
@@ -68,7 +76,7 @@ apply one of ~10 filters to a pic and upload. Privacy and text can be set in the
 
 ### 0.2
 
-Support for stickers/decals added. To use stickers you will need to create a sticker pack (I will be uploading one soon). A sticker pack is nothing more than a tar file with one or more png file. png files can be any size up to 255x255. They don't all have to be the same size. pngs may use transparent backgrounds. At the moment up to 32 pngs can be included. I might raise it later.
+Support for stickers/decals added. To use stickers you will need to create a sticker pack. `stickers.tar` above is an example. A sticker pack is nothing more than a tar file with one or more png file. png files can be any size up to 255x255. They don't all have to be the same size. pngs may use transparent backgrounds. At the moment up to 32 pngs can be included. I might raise it later.
 
 > Do not compress your tar file. tar.gz, tar.bz, etc, files are not supported. Only plain .tar files.
 
@@ -77,6 +85,8 @@ For linux and mac users, you can run the `tar` command in a terminal by navigati
 ~~~
 tar cvf tarfile_name.tar *.png 
 ~~~
+
+That's pretty much it. You can import your stickers with the Add Sticker button.
 
 ### 0.3
 
