@@ -3829,6 +3829,30 @@ function createLightbox(parent) {
   // convenience var
   var _ctx = lbcanvas.getContext('2d');
   
+  
+  //////////////////////
+  //   	throbber			//
+  //////////////////////
+  
+  
+  var throbber = document.createElement("div");
+  throbber.setAttribute('id', 'throbber');
+  throbber.setAttribute('style', 'display:flex; justify-content: center; width: 100%; height: 70px; position: absolute; top:' + lbcanvas.height / 2 + 'px;');
+  throbber.style.display = 'none';
+  
+  var dot01 = document.createElement("div");
+  dot01.setAttribute('style', 'width:30px; height:30px; margin: 4px; border-radius:100%; background:#fff; animation: 1.4s ease-in-out 0s infinite normal both running animkeys; animation-delay: -0.32s;');
+  var dot02 = document.createElement("div");
+  dot02.setAttribute('style', 'width:30px; height:30px; margin: 4px; border-radius:100%; background:#fff; animation: 1.4s ease-in-out 0s infinite normal both running animkeys; animation-delay: -0.16s;');
+  var dot03 = document.createElement("div");
+  dot03.setAttribute('style', 'width:30px; height:30px; margin: 4px; border-radius:100%; background:#fff; animation: 1.4s ease-in-out 0s infinite normal both running animkeys;');
+  
+  throbber.appendChild(dot01);
+  throbber.appendChild(dot02);
+  throbber.appendChild(dot03);
+  
+  canvasdiv.appendChild(throbber);
+  
   //////////////////////
   // overlay controls	//
   //////////////////////
@@ -3906,6 +3930,7 @@ function createLightbox(parent) {
   ovlaysliders.setAttribute('style', 'width: ' + controls_width + 'px; justify-content: flex-end; height:32px; background: rgba(0, 0, 0, 0.0);');
   ovlaysliders.addEventListener('click', function (e) {e.stopPropagation()}, false);
   ovlaycontrols.appendChild(ovlaysliders);
+  
   
   var scaleslider = document.createElement("input");
   scaleslider.style.display = 'none';
@@ -4166,7 +4191,10 @@ function createLightbox(parent) {
     }
     
     // disable while uploading
-    // TODO progress bar indicator
+    var throbber = document.querySelector('#throbber');
+    if (throbber)
+      throbber.style.display = 'flex';
+    
     postbtn.disabled = true;
     postbtn.style.background = '#808080';
     
@@ -4183,6 +4211,10 @@ function createLightbox(parent) {
     var sensitive    = 'false';
     
     var postonload = function () {
+      
+      if (throbber)
+      	throbber.style.display = 'none';
+      
       resetUI();
       lightbox.click();
     };
@@ -4193,6 +4225,10 @@ function createLightbox(parent) {
     };
     
     var onerror = function (code, errmsg) {
+      
+      if (throbber)
+      	throbber.style.display = 'none';
+      
       print('ERROR ' + code + ': ' + errmsg);
       alert('ERROR ' + code + ': ' + errmsg);
       resetUI();
@@ -4200,6 +4236,10 @@ function createLightbox(parent) {
     };
     
     var onabort = function () {
+      
+      if (throbber)
+      	throbber.style.display = 'none';
+      
     	alert('Upload aborted.');
       resetUI();
       lightbox.click();
@@ -4650,8 +4690,13 @@ function loadLightbox(file, image) {
 
 function processTweaksAndFilter(canvas) {
   
+  var throbber = document.querySelector('#throbber');
+  
   Caman(canvas, function () {
-        
+    
+    if (throbber)
+      throbber.style.display = 'flex';
+    
     // pop all caman operations
     this.revert();
 
@@ -4707,6 +4752,9 @@ function processTweaksAndFilter(canvas) {
       // save rendered pixels; to be used when we need to clear canvas
       canvas.procpixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
       lightboxDrawOverlays();
+      
+      if (throbber)
+      	throbber.style.display = 'none';
 
     });
 
@@ -6907,7 +6955,13 @@ window.addEventListener("load", function(event) {
   height: 25px;
   border-radius: 25px;
   cursor: pointer;
-}`;
+}
+
+@keyframes animkeys {
+0% 80% 100% {transform: scale(1.0, 1.0);}
+40% {transform: scale(0.0, 0.0)}
+}
+`;
   
   var head = document.querySelector('head');
   head.appendChild(slider_style);
