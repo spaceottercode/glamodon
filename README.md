@@ -44,8 +44,8 @@ On Chrome, no plugin is needed to run a User-Script like this one. Drag the scri
 
 i.e. utilities. This is where you'll find things like the focal point tool and other tools like rotate (90º)
 
-- [ ] focal point
-- [ ] rotate CW, CCW, flip
+- [x] focal point
+- [x] rotate CW, CCW, flip
 - [x] brightness & contrast
 - [x] saturation
 - [x] exposure, gamma
@@ -56,7 +56,7 @@ i.e. utilities. This is where you'll find things like the focal point tool and o
 ### misc
 
 - [ ] render to sizes > 640x640
-- [ ] add vertical scroll
+- [x] add vertical scroll
 - [ ] as the script reaches maturation, change toot button to a done/ button, processed image is integrated back
 into compose text box as usual retaining traditional workflow
 
@@ -86,3 +86,6 @@ stickers can now be scaled.
 
 now includes tools for adjusting the brightness & contrast, exposure, gamma, hue & saturation, and the vibrance of an image.
 
+### 0.6
+
+non-compounded rotate and flips added. Focal point tool added.
