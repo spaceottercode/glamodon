@@ -1,5 +1,5 @@
 # Glam
-[Userscript](https://en.wikipedia.org/wiki/Userscript) that adds a new button to your compose box on Mastodon websites<sup>1</sup>. With this new button you can apply filters & stickers to your images and tweak them.
+Glam is a [userscript](https://en.wikipedia.org/wiki/Userscript) that adds a new button to your compose box on Mastodon websites<sup>1</sup>. With this new button you can apply filters & stickers to your images and tweak them.
 
 This scripts runs on Firefox with GreaseMonkey or Chrome (natively as an extension).
 
