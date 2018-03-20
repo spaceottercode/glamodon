@@ -1,5 +1,5 @@
 # Glam
-User-Script that adds a new button to your compose box on Mastodon websites<sup>1</sup>. With this new button you can apply filters & stickers to your images and tweak them.
+[Userscript](https://en.wikipedia.org/wiki/Userscript) that adds a new button to your compose box on Mastodon websites<sup>1</sup>. With this new button you can apply filters & stickers to your images and tweak them.
 
 This scripts runs on Firefox with GreaseMonkey or Chrome (natively as an extension).
 
@@ -16,15 +16,15 @@ This scripts runs on Firefox with GreaseMonkey or Chrome (natively as an extensi
 
 ### Firefox
 
-To run User-Scripts on Firefox based browsers you will need [Greasemonkey extension](https://addons.mozilla.org/en-US/firefox/addon/greasemonkey/) plugin. 
+To run userscripts on Firefox based browsers you will need [Greasemonkey extension](https://addons.mozilla.org/en-US/firefox/addon/greasemonkey/) plugin. 
 
 Next **[Click here](https://raw.githubusercontent.com/spaceottercode/glamodon/master/glamodon.user.js)** to automatically install the script.
 
-If GreaseMonkey does not detect the User-Script, create a New User Script in GreaseMonkey, and replace it with the contents of [glamodon.users.js](https://raw.githubusercontent.com/spaceottercode/glamodon/master/glamodon.user.js).
+If GreaseMonkey does not detect the userscript, create a `New user script...` in GreaseMonkey, and replace it with the contents of [glamodon.users.js](https://raw.githubusercontent.com/spaceottercode/glamodon/master/glamodon.user.js).
 
 ### Chrome
 
-On Chrome, no plugin is needed to run a User-Script like this one. Drag the script unto your browser's extension window to install. See Chromes documentation for instructions on accessing the extension window.
+On Chrome, no plugin is needed to run a userscript like this one. Drag the script unto your browser's extension window to install. See Chromes documentation for instructions on accessing the extension window/page.
 
 # Features
 
@@ -98,4 +98,4 @@ now includes tools for adjusting the brightness & contrast, exposure, gamma, hue
 
 ### 0.6
 
-non-compounded rotate and flips added. Focal point tool added.
+non-compounded rotate and flips added. Focal point tool added. throbber added.
